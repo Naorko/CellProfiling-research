@@ -102,7 +102,7 @@ def setup_logging(args):
     head = '{asctime}:{levelname}: {message}'
     handlers = [logging.StreamHandler(sys.stderr)]
     logging.basicConfig(level=logging.INFO, format=head, style='{', handlers=handlers)
-    logging.info('Start with arguments {}'.format(args))
+    # logging.info('Start with arguments {}'.format(args))
 
 
 def setup_determinism(args):

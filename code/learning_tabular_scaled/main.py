@@ -63,6 +63,8 @@ def print_exp_description(Model, args, kwargs):
     col = 3
     i = 0
     for k, v in args.__dict__.items():
+        v = str(v)
+        v = v if len(v) < 100 else v[:50]+'...'+v[-50:]
         print(f'\t{k}: {v}', end='')
         i = (i + 1) % col
         if not i:

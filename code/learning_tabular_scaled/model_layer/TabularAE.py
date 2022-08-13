@@ -30,36 +30,38 @@ class TabularAE(pl.LightningModule):
                         nn.ReLU(inplace=True)]
                        for i in range(1, len(enc_dims))]
         enc_layers = sum(enc_layers, [])
+        self.encoder = nn.Sequential(*enc_layers)
 
-        self.encoder = nn.Sequential(
-            nn.Linear(self.input_size, 512),
-            nn.ReLU(inplace=True),
-            nn.Linear(512, 256),
-            nn.ReLU(inplace=True),
-            nn.Linear(256, 128),
-            nn.ReLU(inplace=True),
-            nn.Linear(128, 100),
-            nn.ReLU(inplace=True),
-            nn.Linear(100, 50),
-            nn.ReLU(inplace=True),
-            nn.Linear(50, 25),
-            nn.ReLU(inplace=True),
-            nn.Linear(25, 10)
-            # nn.ReLU(inplace=True)
-        )
+        # self.encoder = nn.Sequential(
+        #     nn.Linear(self.input_size, 512),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(512, 256),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(256, 128),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(128, 100),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(100, 50),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(50, 25),
+        #     nn.ReLU(inplace=True),
+        #     nn.Linear(25, 10)
+        #     # nn.ReLU(inplace=True)
+        # )
 
         dec_dims = [2 ** i for i in range(16, 1, -1)
                     if self.latent_space_dim <= 2 ** i <= self.target_size]
         dec_layers = [[nn.Linear(dec_dims[len(dec_dims) - i], dec_dims[len(dec_dims) - i - 1]),
                        nn.ReLU(inplace=True)]
                       for i in range(1, len(dec_dims))]
-        dec_layers += [[nn.Linear(dec_dims[0], self.target_size), nn.ReLU(inplace=True)]]
+        dec_layers += [[nn.Linear(dec_dims[0], self.target_size)]]
         dec_layers = sum(dec_layers, [])
+        self.decoder = nn.Sequential(*dec_layers)
 
-        self.decoder = nn.Sequential(
-            nn.Linear(10, self.target_size),
-            # nn.ReLU(inplace=True)
-        )
+        # self.decoder = nn.Sequential(
+        #     nn.Linear(10, self.target_size),
+        #     # nn.ReLU(inplace=True)
+        # )
 
     def forward(self, x):
         z = self.encoder(x)
