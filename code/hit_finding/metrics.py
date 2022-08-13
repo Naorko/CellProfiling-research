@@ -5,12 +5,15 @@ import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 
+import os
+import sys
+sys.path.append(os.path.abspath('..'))
 from hit_finding.constants import *
 from learning_tabular.constants import CHANNELS, LABEL_FIELD
 from learning_tabular.preprocessing import load_plate_csv, list_columns
 
 
-def load_pure_zscores(plate_csv, raw, by_well=True, inter_channel=True):
+def load_pure_zscores(plate_csv, raw, by_well=True, inter_channel=True, index_fields=None, well_index=None):
     if raw:
         if inter_channel:
             dest = 'raw'
@@ -25,13 +28,18 @@ def load_pure_zscores(plate_csv, raw, by_well=True, inter_channel=True):
         index_size = 4 if by_well else 6
         return pd.read_csv(dest, index_col=list(range(index_size)))
 
-    df = load_plate_csv(plate_csv)
+    df = load_plate_csv(plate_csv, index_fields=index_fields)
 
     if by_well:
-        df = df.groupby(by=['Plate', LABEL_FIELD, 'Metadata_broad_sample', 'Image_Metadata_Well']).apply(
-            lambda g: g.mean())
+        if well_index is None:
+            well_index = ['Plate', LABEL_FIELD, 'Metadata_broad_sample', 'Image_Metadata_Well']
+
+        df = df.groupby(by=well_index).apply(lambda g: g.mean())
 
     df_mock = df[df.index.isin(['mock'], 1)]
+    if not df_mock.shape[0]:
+        print(f'no mock wells in {os.path.basename(plate_csv)}')
+        return None
 
     scaler = StandardScaler()
     scaler.fit(df_mock)
@@ -45,14 +53,16 @@ def load_pure_zscores(plate_csv, raw, by_well=True, inter_channel=True):
     return df_zscores
 
 
-def extract_pure(plate_csv):
+def extract_pure(plate_csv, index_fields=None, well_index=None):
     print('.', end='')
 
-    err = load_pure_zscores(f'{err_fld}/{plate_csv}', raw=False)
+    err = load_pure_zscores(f'{err_fld}/{plate_csv}', raw=False,
+                            index_fields=index_fields, well_index=well_index)
     del err
-    raw = load_pure_zscores(f'{raw_fld}/{plate_csv}', raw=True)
-    del raw
-    raw1to1 = load_pure_zscores(f'{raw1to1_fld}/{plate_csv}', raw=True, inter_channel=False)
+    # raw = load_pure_zscores(f'{raw_fld}/{plate_csv}', raw=True)
+    # del raw
+    raw1to1 = load_pure_zscores(f'{raw1to1_fld}/{plate_csv}', raw=True, inter_channel=False,
+                                index_fields=index_fields, well_index=well_index)
     del raw1to1
 
 
@@ -273,11 +283,19 @@ def extract_scores_from_all(score_func, by_well=True, well_type='treated', thres
 if __name__ == '__main__':
     print('metrics main')
     os.makedirs(f'{pure_fld}/err', exist_ok=True)
-    os.makedirs(f'{pure_fld}/raw', exist_ok=True)
+    # os.makedirs(f'{pure_fld}/raw', exist_ok=True)
     os.makedirs(f'{pure_fld}/raw1to1', exist_ok=True)
 
-    p = Pool(3)
+#     p = Pool(6)
 
-    results = p.map(extract_pure, [f[1] for f in files])
-    p.close()
-    p.join()
+#     results = p.map(extract_pure, [f[1] for f in files])
+#     p.close()
+#     p.join()
+
+    idx_fld = ['Plate', 'Well_Role', 'Broad_Sample', 'Well', 'Site', 'ImageNumber']
+    wll_idx = ['Plate', 'Well_Role', 'Broad_Sample', 'Well']
+
+    i = int(sys.argv[1])
+    fs = [f[1] for f in files]
+    fs.sort()
+    extract_pure(fs[i], index_fields=idx_fld, well_index=wll_idx)
