@@ -34,9 +34,10 @@ def load_data(args):
     :return:
     """
 
-    all_plates = sum(args.plates_split, [])
+    all_plates = args.plates_split[0]
     if args.metadata_path is None:
-        mt_df = create_tabular_metadata(args.plates_path, all_plates, args.label_field)
+        mt_df = create_tabular_metadata(args.plates_path, all_plates , args.label_field, args.train_labels, args.split_field, args.sample_n)
+        mt_df.to_csv(args.metadata_path, index=False)
     else:
         mt_df = pd.read_csv(args.metadata_path, dtype={'Plate': int, 'Count': int})
         mt_df[args.split_field] = mt_df[args.split_field].apply(eval)
@@ -108,7 +109,7 @@ def create_datasets(plates_split, partitions, data_dir,
                     device, norm_params_path):
     train_plates, test_plates = plates_split
     mean, std = get_data_stats(partitions['train'], train_plates, data_dir, device,
-                               input_fields, target_fields, norm_params_path)
+                               input_fields, target_fields, norm_params_path, index_fields)
     mean, std = [torch.tensor(lst, dtype=torch.float32) for lst in [mean, std]]
 
     tabular_transforms = transforms.Compose([
@@ -150,22 +151,22 @@ def print_data_statistics(datasets):
                 len(datasets['test'][plate][key])) + ' cells')
 
 
-def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path):
+def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path, index_fields):
     # TODO: Replace with actual numbers from more plates
     if os.path.exists(norm_params_path):
         mean, std = joblib.load(norm_params_path)
     else:
         logging.info('calculating mean and std...')
-        mean, std = calc_mean_and_std(train_mt_df, data_dir, len(train_plates), device, input_fields, target_fields)
+        mean, std = calc_mean_and_std(train_mt_df, data_dir, len(train_plates), device, input_fields, target_fields, index_fields)
         joblib.dump((mean, std), norm_params_path)
 
     return mean, std
 
 
-def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target_fields):
+def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target_fields, index_fields):
     train_data = TabularDataset(mt_df, root_dir=data_dir,
                                 input_fields=input_fields, target_fields=target_fields,
-                                for_data_statistics_calc=True)
+                                for_data_statistics_calc=True, index_fields=index_fields)
     batch_size = int(len(train_data) / num_batches)
     train_loader = DataLoader(train_data, batch_size=batch_size, shuffle=False)
     num_channels = len(input_fields) + len(target_fields)
