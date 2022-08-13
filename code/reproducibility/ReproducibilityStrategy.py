@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 import pandas as pd
-import scipy
+import scipy.stats
 
 
 class ReproducibilityStrategy(ABC):

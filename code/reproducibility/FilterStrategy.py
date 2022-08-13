@@ -1,6 +1,7 @@
 from abc import ABC, abstractmethod
 
 import pandas as pd
+from typing import List
 
 
 class FilterStrategy(ABC):
@@ -84,6 +85,52 @@ class MatchFilterDecorator(FilterStrategy):
     def filter_dataframe(self, compounds: pd.DataFrame, field: str):
         cur_filtered = self._filter_strategy.filter_dataframe(compounds, field)
         cur_filtered = cur_filtered.loc[[x for x in cur_filtered.index if x in self._filtered_base.index]]
+        return cur_filtered
+
+    def get_filter_threshold(self) -> float:
+        return self._filter_strategy.get_filter_threshold()
+
+
+class DerivedFilterDecorator(FilterStrategy):
+    def __init__(self, filter_strategy: FilterStrategy, compounds: pd.DataFrame, field: str):
+        self._filter_strategy = filter_strategy
+        self._filtered_base = filter_strategy.filter_dataframe(compounds, field)
+
+    def filter_dataframe(self, compounds: pd.DataFrame, field: str):
+        cur_filtered = compounds.loc[[x for x in compounds.index if x in self._filtered_base.index]]
+        return cur_filtered
+
+    def get_filter_threshold(self) -> float:
+        return self._filter_strategy.get_filter_threshold()
+
+
+class UnionFilterDecorator(FilterStrategy):
+    def __init__(self, filter_strategy: FilterStrategy, compounds: List[pd.DataFrame], fields: List[str]):
+        self._filter_strategy = filter_strategy
+        self._filtered_base = [filter_strategy.filter_dataframe(cs, f) for cs, f in zip(compounds, fields)]
+        self._base_index = {idx for df in self._filtered_base for idx in df.index}
+        del self._filtered_base
+
+    def filter_dataframe(self, compounds: pd.DataFrame, field: str):
+        cur_filtered = compounds.loc[[x for x in compounds.index if x in self._base_index]]
+        return cur_filtered
+
+    def get_filter_threshold(self) -> float:
+        return self._filter_strategy.get_filter_threshold()
+
+
+class IntersectFilterDecorator(FilterStrategy):
+    def __init__(self, filter_strategy: FilterStrategy, compounds: List[pd.DataFrame], fields: List[str]):
+        self._filter_strategy = filter_strategy
+        self._filtered_base = [filter_strategy.filter_dataframe(cs, f) for cs, f in zip(compounds, fields)]
+        self._base_index = self._filtered_base[0].index
+        for df in self._filtered_base[1:]:
+            self._base_index = self._base_index.intersection(df.index)
+
+        del self._filtered_base
+
+    def filter_dataframe(self, compounds: pd.DataFrame, field: str):
+        cur_filtered = compounds.loc[[x for x in compounds.index if x in self._base_index]]
         return cur_filtered
 
     def get_filter_threshold(self) -> float:
