@@ -18,10 +18,10 @@ class Model_Config(Enum):
     UNET1TO1 = ('unet_1to1', Unet,
                 {'n_input_channels': 1, 'n_classes': 1, 'input_size': (input_w, input_h), 'lr': lr,
                  'epochs': epochs, 'minimize_net_factor': minimize_net_factor})
-    AUTO4T01 = ('auto_4to1', UnetnoBypass,
+    AUTO4TO1 = ('auto_4to1', UnetnoBypass,
                 {'n_input_channels': 4, 'n_classes': 1, 'input_size': (input_w, input_h), 'lr': lr,
                  'epochs': epochs, 'minimize_net_factor': minimize_net_factor})
-    AUTO1T01 = ('auto_1to1', UnetnoBypass,
+    AUTO1TO1 = ('auto_1to1', UnetnoBypass,
                 {'n_input_channels': 1, 'n_classes': 1, 'input_size': (input_w, input_h), 'lr': lr,
                  'epochs': epochs, 'minimize_net_factor': minimize_net_factor})
 

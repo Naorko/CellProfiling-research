@@ -56,3 +56,5 @@ def show_input_and_target(input, target=None, pred=None, title='', save_dir=None
 
     if save_dir is not None:
         fig.savefig(os.path.join(save_dir, title + '.jpg'))
+
+    plt.close(fig)

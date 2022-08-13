@@ -3,6 +3,7 @@ import os
 import sys
 
 import pandas as pd
+import numpy as np
 import pytorch_lightning as pl
 import torch
 from pytorch_lightning.loggers import TensorBoardLogger
@@ -42,7 +43,7 @@ def test_by_partition(model, test_dataloaders, input_size, input_channels, exp_d
     return res
 
 
-def test(model, data_loader, input_size, input_channels=4, title='', save_dir='', show_images=True):
+def test(model, data_loader, input_size, input_channels=4, title='', save_dir='', show_images=True, images_num=2):
     start = 0
     results = pd.DataFrame(
         columns=['Plate', 'Well', 'Site', 'ImageNumber', 'Well_Role', 'Broad_Sample', 'PCC', 'MSE'])
@@ -55,17 +56,17 @@ def test(model, data_loader, input_size, input_channels=4, title='', save_dir=''
         results.PCC[start] = pcc.cpu().numpy()
         results.MSE[start] = mse.cpu().numpy()
 
-        if show_images and start == 0:
+        if show_images and start < images_num:
             pred = pred.cpu().detach().numpy()
             # TODO: Reverse transform (?)
             if input_channels == 5:
                 show_input_and_target(inp.cpu().detach().numpy()[0, :, :, :],
-                                      pred=pred[0, :, :, :], title=title, save_dir=save_dir)
+                                      pred=pred[0, :, :, :], title=f'{title}_{start}', save_dir=save_dir)
                 # TODO: Check of use target channel
             else:
                 show_input_and_target(inp.cpu().detach().numpy()[0, :, :, :],
                                       target.cpu().detach().numpy()[0, :, :, :],
-                                      pred[0, :, :, :], title, save_dir,
+                                      pred[0, :, :, :], f'{title}_{start}', save_dir,
                                       target_channel=args.target_channel)
         start += 1
 
@@ -149,22 +150,21 @@ def print_exp_description(Model, args, kwargs):
 
 if __name__ == '__main__':
     inp = int(sys.argv[1])
-    # model_id = inp // 100
     channel_id = (inp // 100) - 1
     mf = 16  # 2 ** (inp % 10)
-    plate_id = (inp % 100) - 1
+    model_id = (inp % 100) - 1
 
-    exp_num = inp  # if None, new experiment directory is created with the next available number
+    exp_num = 91000 + inp  # if None, new experiment directory is created with the next available number
     DEBUG = False
 
     models = [
         # Model_Config.UNET1TO1,
         Model_Config.UNET4TO1,
         # Model_Config.UNET5TO5,
-        # Model_Config.AUTO1T01,
-        # Model_Config.AUTO4T01
+        # Model_Config.AUTO1TO1,
+        Model_Config.AUTO4TO1
     ]
-    # models = [models[model_id]]
+    models = [models[model_id]]
 
     exps = [(input_size, lr, batch_size)
             for input_size in [(128, 128), (130, 116), (260, 232), (256, 256)]
@@ -192,7 +192,7 @@ if __name__ == '__main__':
             args = config.parse_args(model, target_channel, exp_num)
             args.batch_size = batch_size
 
-            args.mode = 'train'
+            # args.mode = 'train'
             args.mode = 'predict'
             # args.plates_split = [
             #     [
@@ -213,10 +213,43 @@ if __name__ == '__main__':
                       24311, 26622, 26641, 24594, 25676, 24774, 26562, 25997, 26640, 24562, 25938, 25708, 24321, 24735,
                       26786, 25571, 26666, 24294, 24640, 25985, 24661]
 
-            args.plates_split = [
-                [p for p in plates if p != plates[plate_id]],
-                [plates[plate_id]]  # , 25862, 26672, 24734, 25991, 25382, 25566]
-            ]
+            all_plates = [
+                24596, 26679, 24514, 26159, 26672, 25848, 25410, 25967, 24657, 26642, 25962, 26678, 24293, 24296, 26626,
+                25931, 24586, 24773, 24633, 26205, 24308, 25642, 25391, 25708, 26668, 26663, 25692, 24754, 24584, 24609,
+                24307, 25503, 26644, 24793, 24300, 24305, 24617, 26008, 25738, 25991, 24278, 25925, 25567, 26271, 25588,
+                24277, 26588, 24509, 25592, 24651, 24752, 25584, 26598, 25639, 24785, 26688, 25856, 25857, 25664, 25859,
+                25681, 26607, 26071, 25576, 24655, 24310, 25418, 26579, 25414, 26124, 25937, 26666, 25380, 25571, 24648,
+                26702, 24634, 24753, 26795, 24736, 25726, 26007, 25739, 26596, 24605, 25565, 26685, 25740, 25593, 24732,
+                25966, 25912, 24774, 26006, 24312, 24303, 26675, 26670, 25566, 26542, 25665, 24731, 26608, 25990, 24640,
+                26641, 26544, 24566, 25683, 25986, 24684, 26092, 24508, 24280, 26216, 26794, 25382, 25403, 24683, 26207,
+                25847, 25943, 26174, 25849, 26572, 24795, 25430, 25406, 25598, 25594, 24583, 25904, 26580, 24653, 25605,
+                25643, 25994, 26203, 26060, 26110, 24624, 25428, 24631, 24740, 26625, 24311, 26643, 26133, 26771, 24306,
+                24796, 24564, 24302, 24563, 24663, 26684, 26622, 24733, 25553, 26744, 24734, 26058, 25674, 26562, 25676,
+                24516, 26753, 25724, 25488, 26739, 24517, 25997, 24772, 24301, 26695, 25852, 26673, 25853, 24739, 26640,
+                26564, 26009, 24357, 24611, 25688, 26595, 24602, 25914, 25892, 24297, 25890, 24515, 25580, 24625, 24685,
+                25923, 24797, 24507, 25704, 25680, 25983, 25591, 25911, 25854, 26575, 26118, 25694, 25992, 24638, 25938,
+                24647, 24636, 25700, 26681, 24645, 24641, 26181, 25903, 26703, 24304, 26611, 24637, 24646, 25432, 24593,
+                24590, 26705, 26140, 24595, 25918, 25955, 25968, 24644, 24320, 25939, 24592, 26545, 26166, 24642, 24518,
+                26683, 24755, 25695, 25578, 25690, 25641, 25855, 25677, 24604, 24594, 25568, 26662, 24735, 25372, 25485,
+                26748, 24775, 24750, 26204, 24623, 25435, 25929, 25587, 25993, 25564, 25438, 26521, 26765, 25913, 25376,
+                24661, 25426, 26677, 25985, 25599, 25573, 25862, 24309, 25490, 25915, 24313, 24565, 25965, 26081, 25732,
+                24523, 25583, 26135, 24726, 25570, 25908, 24321, 24512, 25424, 25422, 26002, 24792, 24525, 24295, 25944,
+                25579, 25987, 25374, 25667, 25725, 26745, 26531, 24789, 25387, 26767, 25891, 25686, 25436, 24294, 26669,
+                25678, 25675, 24664, 24619, 26126, 26107, 26600, 24588, 26786, 24352, 25378, 25707, 24783, 26671, 26612,
+                26730, 24279, 25392, 24667, 26202, 26601, 26768, 26232, 26623, 26576, 25569, 26569, 26574, 25989, 25581,
+                26682, 26664, 24319, 26674, 25949, 24759, 24751, 26752, 24756, 26724, 25420, 24656, 25689, 26224, 24643,
+                25984, 26115, 24562, 26061, 24585, 26128, 25572, 25663, 24688, 25742, 26239, 25988, 25575, 25679, 26785,
+                24639, 24687, 24618, 24560, 26592, 24666, 24652, 25858, 26138, 25945, 25935, 25638, 25585, 25434, 24758,
+                26578, 25416, 25492, 24654, 26680, 26577, 25590, 25909, 24591, 25741, 26247, 25885, 26772, 24635, 25408,
+                26563]
+
+            all_split = [all_plates, all_plates.copy()]
+            args.plates_split = all_split
+
+            # args.plates_split = [
+            #     [p for p in plates if p != plates[plate_id]],
+            #     [plates[plate_id]]  # , 25862, 26672, 24734, 25991, 25382, 25566]
+            # ]
 
             args.test_samples_per_plate = None
             args.checkpoint = config.get_checkpoint(args.log_dir, model.name, args.target_channel)

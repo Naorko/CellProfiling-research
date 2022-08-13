@@ -105,7 +105,7 @@ def get_paths(exp_num=None, model_type='UNET4TO1', target_channel=Channels.AGP):
     # exp_num = get_exp_num(EXP_DIR)
     if exp_num is not None:
         make_folder(EXP_DIR)
-    METADATA_PATH = os.path.join(DATA_DIR, 'metadata')
+    METADATA_PATH = os.path.join(DATA_DIR, 'metadata_predict')
     IMAGES_PATH = os.path.join(DATA_DIR, 'images')
 
     LOG_DIR = f"{EXP_DIR}"
