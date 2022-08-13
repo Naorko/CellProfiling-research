@@ -82,13 +82,16 @@ def take_channel(filename, task_channel):
     return x_df, y_df
 
 
-def load_plate_csv(csv_file):
+def load_plate_csv(csv_file, index_fields=None):
     """
     This function read a plate's csv file and give an indexed pandas dataframe
     """
+    if index_fields is None:
+        index_fields = ['Plate', LABEL_FIELD, 'Metadata_broad_sample', 'Image_Metadata_Well',
+                        'ImageNumber', 'ObjectNumber']
     df: pd.DataFrame = pd.read_csv(csv_file)
     df = df.set_index(
-        ['Plate', LABEL_FIELD, 'Metadata_broad_sample', 'Image_Metadata_Well', 'ImageNumber', 'ObjectNumber'])
+        index_fields)
     return df
 
 
