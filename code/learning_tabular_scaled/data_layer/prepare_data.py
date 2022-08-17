@@ -36,14 +36,16 @@ def load_data(args):
 
     all_plates = args.plates_split[0]
     if args.metadata_path is None:
-        mt_df = create_tabular_metadata(args.plates_path, all_plates , args.label_field, args.train_labels, args.split_field, args.sample_n)
+        mt_df = create_tabular_metadata(args.plates_path, all_plates, args.label_field, args.train_labels,
+                                        args.split_field, args.sample_n)
         mt_df.to_csv(args.metadata_path, index=False)
     else:
         mt_df = pd.read_csv(args.metadata_path, dtype={'Plate': int, 'Count': int})
         mt_df[args.split_field] = mt_df[args.split_field].apply(eval)
         plates = [p for p in all_plates if p not in mt_df['Plate'].unique()]
         if plates:
-            add_df = create_tabular_metadata(args.plates_path, plates, args.label_field, args.train_labels, args.split_field, args.sample_n)
+            add_df = create_tabular_metadata(args.plates_path, plates, args.label_field, args.train_labels,
+                                             args.split_field, args.sample_n)
             mt_df = pd.concat([mt_df, add_df], ignore_index=True)
             mt_df.to_csv(args.metadata_path, index=False)
 
@@ -62,15 +64,17 @@ def load_data(args):
 
 def split_by_plates(df, args) -> dict:
     train_plates, test_plates = args.plates_split
-    train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True) #TODO: SEED
+    train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)  # TODO: SEED
 
     logging.info(f'Train Plates: {" ".join(str(t) for t in train_plates)}')
     logging.info(f'Validation Plates: {" ".join(str(t) for t in val_plates)}')
     logging.info(f'Test Plates: {" ".join(str(t) for t in test_plates)}' if test_plates else 'There are no test plates')
 
     partitions = {
-        'train': list(df[(df['Plate'].isin(train_plates)) & (df[args.label_field].isin(args.train_labels)) & (df['Mode'] == 'train')].index),
-        'val': list(df[(df['Plate'].isin(val_plates)) & (df[args.label_field].isin(args.train_labels)) & (df['Mode'] == 'train')].index),
+        'train': list(df[(df['Plate'].isin(train_plates)) & (df[args.label_field].isin(args.train_labels)) & (
+                    df['Mode'] == 'train')].index),
+        'val': list(df[(df['Plate'].isin(val_plates)) & (df[args.label_field].isin(args.train_labels)) & (
+                    df['Mode'] == 'train')].index),
         'test': {}
     }
 
@@ -82,7 +86,8 @@ def split_by_plates(df, args) -> dict:
         partitions['test'][str(plate)] = {}
         for lbl in args.labels:
             partitions['test'][str(plate)][lbl] = list(
-                df[(df['Plate'] == plate) & (df[args.label_field] == lbl) & (df['Mode'] == 'predict')].index)[:args.test_samples_per_plate]
+                df[(df['Plate'] == plate) & (df[args.label_field] == lbl) & (df['Mode'] == 'predict')].index)[
+                                                  :args.test_samples_per_plate]
 
     return partitions
 
@@ -104,6 +109,17 @@ def partitions_idx_to_dfs(mt_df, partitions):
     return df_partitions
 
 
+def get_tensor(inp):
+    return torch.from_numpy(inp)
+
+
+def get_normlizer(mean, std):
+    def normalizer(inp):
+        return inp.sub_(mean).div_(std)
+
+    return normalizer
+
+
 def create_datasets(plates_split, partitions, data_dir,
                     input_fields, target_fields, index_fields,
                     device, norm_params_path):
@@ -113,8 +129,8 @@ def create_datasets(plates_split, partitions, data_dir,
     mean, std = [torch.tensor(lst, dtype=torch.float32) for lst in [mean, std]]
 
     tabular_transforms = transforms.Compose([
-        lambda inp: torch.from_numpy(inp),
-        lambda inp: inp.sub_(mean).div_(std)
+        get_tensor,
+        get_normlizer(mean, std)
     ])
 
     datasets = {
@@ -125,7 +141,8 @@ def create_datasets(plates_split, partitions, data_dir,
                               input_fields=input_fields, target_fields=target_fields, index_fields=index_fields,
                               shuffle=False),
         'val_for_test': TabularDataset(partitions['val'], root_dir=data_dir, transform=tabular_transforms,
-                                       input_fields=input_fields, target_fields=target_fields, index_fields=index_fields,
+                                       input_fields=input_fields, target_fields=target_fields,
+                                       index_fields=index_fields,
                                        is_test=True, shuffle=False),
         'test': {}
     }
@@ -151,13 +168,15 @@ def print_data_statistics(datasets):
                 len(datasets['test'][plate][key])) + ' cells')
 
 
-def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path, index_fields):
+def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path,
+                   index_fields):
     # TODO: Replace with actual numbers from more plates
     if os.path.exists(norm_params_path):
         mean, std = joblib.load(norm_params_path)
     else:
         logging.info('calculating mean and std...')
-        mean, std = calc_mean_and_std(train_mt_df, data_dir, len(train_plates), device, input_fields, target_fields, index_fields)
+        mean, std = calc_mean_and_std(train_mt_df, data_dir, len(train_plates), device, input_fields, target_fields,
+                                      index_fields)
         joblib.dump((mean, std), norm_params_path)
 
     return mean, std
@@ -211,7 +230,6 @@ def create_data_loaders(datasets, partitions, batch_size, num_workers=32) -> dic
     # batch = next(iter(data_loaders['train']))
     # print(f'Took {time()-s} seconds')
     # exit(42)
-
 
     for plate in list(partitions['test'].keys()):
         data_loaders['test'][plate] = {}
