@@ -4,25 +4,29 @@ from multiprocessing import Pool
 import numpy as np
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
+from glob import glob
 
 import os
 import sys
+
 sys.path.append(os.path.abspath('..'))
 from hit_finding.constants import *
 from learning_tabular.constants import CHANNELS, LABEL_FIELD
 from learning_tabular.preprocessing import load_plate_csv, list_columns
 
 
-def load_pure_zscores(plate_csv, raw, by_well=True, inter_channel=True, index_fields=None, well_index=None):
-    if raw:
-        if inter_channel:
-            dest = 'raw'
+def load_pure_zscores(plate_csv, raw=False, by_well=True, inter_channel=True, index_fields=None, well_index=None,
+                      dest=None):
+    if dest is None:
+        if raw:
+            if inter_channel:
+                dest = 'raw'
+            else:
+                dest = 'raw1to1'
         else:
-            dest = 'raw1to1'
-    else:
-        dest = 'err'
+            dest = 'err'
 
-    dest = f'{pure_fld}/{dest}/{os.path.basename(plate_csv)}'
+        dest = f'{pure_fld}/{dest}/{os.path.basename(plate_csv)}'
 
     if os.path.exists(dest):
         index_size = 4 if by_well else 6
@@ -282,20 +286,26 @@ def extract_scores_from_all(score_func, by_well=True, well_type='treated', thres
 
 if __name__ == '__main__':
     print('metrics main')
-    os.makedirs(f'{pure_fld}/err', exist_ok=True)
-    # os.makedirs(f'{pure_fld}/raw', exist_ok=True)
-    os.makedirs(f'{pure_fld}/raw1to1', exist_ok=True)
+    print("Usage: metrics.py -p [experiment_path] [plate_index]")
+    if sys.argv[1] == '-p':  # Means to run pure zscores run
+        exp_fld = sys.argv[2]
+        plates = glob(os.path.join(exp_fld, '*', 'results', '*'))
+        try:
+            plate_idx = int(sys.argv[3])
+            plate = plates[plate_idx]
+            pure_fld = os.path.join(exp_fld, 'zscores')
+            os.makedirs(pure_fld, exist_ok=True)
+            dest = os.path.join(pure_fld, os.path.basename(plate))
+            print(f'Extract pure z-scores for plate {plate}')
+            load_pure_zscores(plate, by_well=True,
+                              index_fields=None,
+                              well_index=None,
+                              dest=dest)
+            print('Done!')
+        except:
+            print(f'Error while reading plate {sys.argv[3]}')
 
-#     p = Pool(6)
+    # For Visual Results
+    # idx_fld = ['Plate', 'Well_Role', 'Broad_Sample', 'Well', 'Site', 'ImageNumber']
+    # wll_idx = ['Plate', 'Well_Role', 'Broad_Sample', 'Well']
 
-#     results = p.map(extract_pure, [f[1] for f in files])
-#     p.close()
-#     p.join()
-
-    idx_fld = ['Plate', 'Well_Role', 'Broad_Sample', 'Well', 'Site', 'ImageNumber']
-    wll_idx = ['Plate', 'Well_Role', 'Broad_Sample', 'Well']
-
-    i = int(sys.argv[1])
-    fs = [f[1] for f in files]
-    fs.sort()
-    extract_pure(fs[i], index_fields=idx_fld, well_index=wll_idx)

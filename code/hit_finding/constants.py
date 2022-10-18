@@ -3,7 +3,7 @@ import os
 # Tabular
 model = 'DNN'
 # err_fld = f'/storage/users/g-and-n/tabular_models_results/30000/results/errors/'
-# raw_fld = '/storage/users/g-and-n/plates/csvs'
+raw_fld = '/storage/users/g-and-n/plates/csvs'
 # raw1to1_fld = f'/storage/users/g-and-n/tabular_models_results/30101/results/errors'
 # zsc_fld = f'/storage/users/g-and-n/tabular_models_results/30000/results/z_scores'
 # pure_fld = f'{zsc_fld}/pure'
