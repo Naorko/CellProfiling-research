@@ -11,7 +11,7 @@ from torch.utils.data import DataLoader
 from torchvision import transforms
 
 from data_layer.create_tabular_metadata import create_tabular_metadata
-from data_layer.tabular_dataset_with_ram import TabularDataset
+from data_layer.tabular_dataset_with_processed import TabularDataset
 
 use_cuda = torch.cuda.is_available()
 FloatTensor = torch.cuda.FloatTensor if use_cuda else torch.FloatTensor
@@ -72,9 +72,9 @@ def split_by_plates(df, args) -> dict:
 
     partitions = {
         'train': list(df[(df['Plate'].isin(train_plates)) & (df[args.label_field].isin(args.train_labels)) & (
-                    df['Mode'] == 'train')].index),
+                df['Mode'] == 'train')].index),
         'val': list(df[(df['Plate'].isin(val_plates)) & (df[args.label_field].isin(args.train_labels)) & (
-                    df['Mode'] == 'train')].index),
+                df['Mode'] == 'train')].index),
         'test': {}
     }
 
@@ -159,13 +159,18 @@ def create_datasets(plates_split, partitions, data_dir,
 
 
 def print_data_statistics(datasets):
-    print('train set contains ' + str(len(datasets['train'])) + ' cells')
-    print('val set contains ' + str(len(datasets['val'])) + ' cells')
+    print(f'train set contains {len(datasets["train"])} cells')
+    print(f'val set contains {len(datasets["val"])} cells')
 
+    test_len = {}
     for plate in list(datasets['test'].keys()):
         for key in datasets['test'][plate].keys():
-            print(' test set from plate ' + plate + ' of ' + key + ' contains ' + str(
-                len(datasets['test'][plate][key])) + ' cells')
+            cur_cnt = test_len.get(key, 0)
+            cur_cnt += len(datasets['test'][plate][key])
+            test_len[key] = cur_cnt
+
+    for key, cnt in test_len.items():
+        print(f' test set of {key} contains {cnt} cells')
 
 
 def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path,

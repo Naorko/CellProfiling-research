@@ -10,8 +10,13 @@ import torch
 from argparse import ArgumentParser
 from pathlib import Path
 
+exp_number = None
+
 
 def parse_args(channel_idx=0, exp_num=None):
+    global exp_number
+    exp_number = exp_num
+
     parser = ArgumentParser()
 
     # Data Configuration
@@ -79,23 +84,39 @@ def parse_args(channel_idx=0, exp_num=None):
 
     args, _ = parser.parse_known_args()
 
-    args.input_channels = ['GENERAL'] + args.channels[:channel_idx] + args.channels[channel_idx + 1:]
-    args.target_channels = [args.channels[channel_idx]]
-
     args.cols_dict = json.load(open(args.cols_file, 'r'))
-    args.input_fields = sum([args.cols_dict[k] for k in args.input_channels], [])
-    args.target_fields = sum([args.cols_dict[k] for k in args.target_channels], [])
-    n_pth = fr"/storage/users/g-and-n/plates/{'_'.join(args.input_channels)}-{'_'.join(args.target_channels)}.normsav"
-    args.norm_params_path = n_pth
 
-    args.exp_dir = os.path.join(args.output_root_path, str(exp_num), "channel " + '-'.join(args.target_channels))
-    os.makedirs(args.exp_dir, exist_ok=True)
-    args.checkpoint = get_checkpoint(args.exp_dir)
+    in_channels = ['GENERAL'] + args.channels[:channel_idx] + args.channels[channel_idx + 1:]
+    update_in_channels(in_channels, args)
+
+    out_channels = [args.channels[channel_idx]]
+    update_out_channels(out_channels, args)
 
     setup_logging(args)
     setup_determinism(args)
 
     return args
+
+
+def update_in_channels(channels, args):
+    args.input_channels = channels
+    args.input_fields = sum([args.cols_dict[k] for k in args.input_channels], [])
+    update_norm_pth(args)
+
+
+def update_out_channels(channels, args):
+    args.target_channels = channels
+    args.target_fields = sum([args.cols_dict[k] for k in args.target_channels], [])
+    update_norm_pth(args)
+
+    args.exp_dir = os.path.join(args.output_root_path, str(exp_number), "channel " + '-'.join(args.target_channels))
+    os.makedirs(args.exp_dir, exist_ok=True)
+    args.checkpoint = get_checkpoint(args.exp_dir)
+
+
+def update_norm_pth(args):
+    n_pth = fr"/storage/users/g-and-n/plates/{'_'.join(args.input_channels)}-{'_'.join(args.target_channels)}.normsav"
+    args.norm_params_path = n_pth
 
 
 def setup_logging(args):
