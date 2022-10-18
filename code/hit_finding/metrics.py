@@ -144,6 +144,41 @@ def extract_score(plate_csv, by_well=True, by_channel=True, abs_zscore=True, wel
     return data
 
 
+def extract_ss_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21)):
+    res = {}
+    rep_cnt, fet_cnt = cpdf.shape
+
+    corr = cpdf.astype('float64').T.corr(method='pearson').values
+    if len(corr) == 1:
+        med_corr = 1
+    else:
+        med_corr = np.median(list(corr[np.triu_indices(len(corr), k=1)]))
+
+    res['Med_Corr'] = med_corr
+
+    cpdf_norm = cpdf * np.sqrt(rep_cnt)
+
+    if abs_zscore:
+        cpdf_norm = abs(cpdf_norm.T)
+
+    for t in th_range:
+        gtr_t_cnt = (cpdf_norm >= t).sum().sum()
+        ss_norm = gtr_t_cnt / rep_cnt
+        mas = np.sqrt((max(med_corr, 0) * ss_norm) / fet_cnt)
+        res[f'SS_{t}'] = ss_norm
+        res[f'MAS_{t}'] = mas
+
+    return pd.Series(res)
+
+
+def extract_ss_score(df, expr_fld, th_range=[2, 6, 10, 14], cpd_id_fld='Metadata_broad_sample'):
+    cur_res = df.groupby(cpd_id_fld).apply(extract_ss_score_for_compound, abs_zscore=False,
+                                           th_range=th_range)
+    del df
+    cur_res.to_csv(os.path.join(expr_fld, 'ss-scores.csv'))
+    del cur_res
+
+
 def extract_dist_score(plate_csv, well_type='treated', **kwargs):
     df = load_plate_csv(plate_csv)
     df = df.groupby(by=['Plate', LABEL_FIELD, 'Metadata_broad_sample', 'Image_Metadata_Well']).apply(
@@ -287,6 +322,7 @@ def extract_scores_from_all(score_func, by_well=True, well_type='treated', thres
 if __name__ == '__main__':
     print('metrics main')
     print("Usage: metrics.py -p [experiment_path] [plate_index]")
+    print("Usage: metrics.py -s [experiment_path] [channel_index]")
     if sys.argv[1] == '-p':  # Means to run pure zscores run
         exp_fld = sys.argv[2]
         plates = glob(os.path.join(exp_fld, '*', 'results', '*'))
@@ -305,7 +341,19 @@ if __name__ == '__main__':
         except:
             print(f'Error while reading plate {sys.argv[3]}')
 
+    elif sys.argv[1] == '-s':  # Means to extract ss scores
+        exp_fld = sys.argv[2]
+        channels = glob(os.path.join(exp_fld, '*'))
+        # try:
+        channel_idx = int(sys.argv[3])
+        cur_fld = channels[channel_idx]
+        plates = glob(os.path.join(cur_fld, 'zscores', '*'))
+        cur_df = pd.concat([pd.read_csv(pth, index_col=[0, 1, 2, 3]) for pth in plates])
+        cur_df = cur_df.query('Metadata_ASSAY_WELL_ROLE == "treated"').droplevel(1)
+        extract_ss_score(cur_df, cur_fld, th_range=range(2, 21), cpd_id_fld='Metadata_broad_sample')
+        # except:
+        #     print(f'Error while reading channel {sys.argv[3]}')
+
     # For Visual Results
     # idx_fld = ['Plate', 'Well_Role', 'Broad_Sample', 'Well', 'Site', 'ImageNumber']
     # wll_idx = ['Plate', 'Well_Role', 'Broad_Sample', 'Well']
-
