@@ -68,7 +68,7 @@ class TabularAE(pl.LightningModule):
         y_hat = self.decoder(z)
         return y_hat
 
-    def training_step(self, batch, batch_nb):
+    def training_step(self, batch, batch_idx, dataloader_idx=None):
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
         y_hat = self.forward(x)
@@ -77,7 +77,7 @@ class TabularAE(pl.LightningModule):
         self.log('train_loss', loss.detach(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss, 'log': tensorboard_logs}
 
-    def validation_step(self, batch, batch_nb):
+    def validation_step(self, batch, batch_idx, dataloader_idx=None):
         _, loss, pcc = unify_test_function(self, batch)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_pcc', pcc, on_step=True, on_epoch=True, prog_bar=True, logger=True)

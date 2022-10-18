@@ -109,6 +109,8 @@ def update_out_channels(channels, args):
     args.target_fields = sum([args.cols_dict[k] for k in args.target_channels], [])
     update_norm_pth(args)
 
+    if not os.listdir(args.exp_dir):
+        os.rmdir(args.exp_dir)
     args.exp_dir = os.path.join(args.output_root_path, str(exp_number), "channel " + '-'.join(args.target_channels))
     os.makedirs(args.exp_dir, exist_ok=True)
     args.checkpoint = get_checkpoint(args.exp_dir)

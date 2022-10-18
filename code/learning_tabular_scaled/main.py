@@ -6,8 +6,9 @@ from time import time
 
 import pandas as pd
 import numpy as np
+from itertools import combinations
 
-from configuration.config import parse_args
+from configuration.config import parse_args, update_in_channels, update_out_channels
 from configuration.model_config import Model_Config
 from data_layer.prepare_data import load_data
 from model_layer.TabularAE import unify_test_function
@@ -35,13 +36,12 @@ def main(model, args, kwargs={}):
 
         logging.info('testing model...')
         model.eval()
-
         res = test_by_partition(model, dataloaders['test'], args.exp_dir)
         logging.info('testing model finished...')
 
         save_results(res, args, kwargs)
 
-    else:
+    elif args.mode == 'train':
         logging.info('training model...')
         model.to(args.device)
         logger = TensorBoardLogger(args.exp_dir,
@@ -51,6 +51,44 @@ def main(model, args, kwargs={}):
                              auto_scale_batch_size='binsearch', weights_summary='full')
         trainer.fit(model, dataloaders['train'], dataloaders['val_for_test'])
         logging.info('training model finished.')
+    elif args.mode == 'evaluate':
+        # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.trainer.trainer.Trainer.html#pytorch_lightning.trainer.trainer.Trainer.validate
+        # trainer.validate(dataloaders=val_dataloaders)
+        logging.info('loading model from file...')
+        model = model.load_from_checkpoint(args.checkpoint)
+        model.to(args.device)
+        logging.info('loading model from file finished')
+
+        logger = TensorBoardLogger(args.exp_dir,
+                                   name='log_dir')
+        trainer = pl.Trainer(max_epochs=args.epochs, progress_bar_refresh_rate=1, logger=logger,
+                             gpus=int(torch.cuda.is_available()),
+                             auto_scale_batch_size='binsearch', weights_summary='full')
+
+        res = []
+
+        validates = trainer.validate(model, [dataloaders['train'], dataloaders['val_for_test']])
+        for i, (dataset, val_res) in enumerate(zip(['train', 'val'], validates)):
+            mse = val_res[f'val_loss_epoch/dataloader_idx_{i}']
+            pcc = val_res[f'val_pcc_epoch/dataloader_idx_{i}']
+            res.append([dataset, None, None, mse, pcc])
+
+        test_loaders = []
+        test_loaders_idx = []
+        for plate, plate_data in dataloaders['test'].items():
+            for subset, dataloader in plate_data.items():
+                test_loaders_idx.append((plate, subset))
+                test_loaders.append(dataloader)
+
+        validates = trainer.validate(model, test_loaders[:2])
+        for i, ((plate, subset), val_res) in enumerate(zip(test_loaders_idx[:2], validates)):
+            mse = val_res[f'val_loss_epoch/dataloader_idx_{i}']
+            pcc = val_res[f'val_pcc_epoch/dataloader_idx_{i}']
+            res.append(['test', plate, subset, mse, pcc])
+
+        res_df = pd.DataFrame(res, columns=['Dataset', 'Plate', 'Subset','MSE', 'PCC'])
+        save_results(res_df, args)
+        print(res)
 
 
 def print_exp_description(Model, args, kwargs):
@@ -64,7 +102,7 @@ def print_exp_description(Model, args, kwargs):
     i = 0
     for k, v in args.__dict__.items():
         v = str(v)
-        v = v if len(v) < 100 else v[:50]+'...'+v[-50:]
+        v = v if len(v) < 100 else v[:50] + '...' + v[-50:]
         print(f'\t{k}: {v}', end='')
         i = (i + 1) % col
         if not i:
@@ -115,8 +153,11 @@ def save_results(res, args, kwargs={}):
 
     res_dir = os.path.join(args.exp_dir, 'results.csv')
     if os.path.isfile(res_dir):
-        prev_res = pd.read_csv(res_dir)
-        res = pd.concat([prev_res, res])
+        try:
+            prev_res = pd.read_csv(res_dir)
+            res = pd.concat([prev_res, res])
+        except:
+            print('Could not load old result.. overwriting')
 
     # save_to_pickle(res, os.path.join(args.exp_dir, 'results.pkl'))
     save_to_pickle(args, os.path.join(args.exp_dir, 'args.pkl'))
@@ -136,10 +177,25 @@ if __name__ == '__main__':
     # channel_id = (inp // 100) - 1
     lsd = 8  # 2 ** (inp % 10)
     # plate_id = (inp % 100) - 1
-    channel_id = inp % 10
-    plate_split_id = 0
+    channel_id = 0
+    # split_c = (inp // 10) - 1
 
-    exp_num = (plate_split_id + 3) * 10000  # if None, new experiment directory is created with the next available number
+    channels_inout = [
+        (['AGP'], ['DNA', 'Mito']),
+        (['AGP'], ['DNA', 'RNA']),
+        (['AGP'], ['ER', 'Mito']),
+        (['AGP'], ['ER', 'RNA']),
+        (['DNA'], ['AGP', 'Mito']),
+        (['DNA'], ['AGP', 'RNA']),
+        (['ER'], ['AGP', 'Mito']),
+        (['ER'], ['AGP', 'RNA']),
+        (['Mito'], ['AGP', 'DNA']),
+        (['Mito'], ['AGP', 'ER']),
+        (['RNA'], ['AGP', 'DNA']),
+        (['RNA'], ['AGP', 'ER']),
+    ]
+
+    exp_num = 42100 + inp  # if None, new experiment directory is created with the next available number
     DEBUG = False
 
     exps = [(lr, batch_size)
@@ -162,12 +218,19 @@ if __name__ == '__main__':
         args.batch_size = batch_size
         args.epochs = exp_dict['epochs']
 
+        out_chans, in_chans = channels_inout[inp-1]
+        # in_chans = [args.channels[target_channel]]
+        # in_channels = ['GENERAL'] + list(list(combinations(in_chans, 3))[split_c])
+        update_in_channels(['GENERAL'] + in_chans, args)
+        update_out_channels(out_chans, args)
+
         exp_dict['input_size'] = len(args.input_fields)
         exp_dict['target_size'] = len(args.target_fields)
         model.update_custom_params(exp_dict)
 
         # args.mode = 'train'
         args.mode = 'predict'
+        args.mode = 'evaluate'
 
         plates35 = [24792, 25912, 24509, 24633, 25987, 25680, 25422,
                     24517, 25664, 25575, 26674, 25945, 24687, 24752,
@@ -211,6 +274,21 @@ if __name__ == '__main__':
                         24639, 24687, 24560, 24652, 25858, 25945, 25935, 25638, 25585, 25434, 24758, 25416, 25492,
                         24654, 26680, 25590, 25909, 24591, 26247, 25885, 26772, 24635, 25408]]
 
+        plates100 = [
+            24596, 26679, 24514, 26159, 26672, 25848, 24657, 26642, 25962, 26678, 26626,
+            25681, 26607, 26071, 25576, 25418, 25380, 25571, 24648,
+            25726, 26007, 26596, 24605, 25565, 26685, 25593, 24732,
+            25966, 25912, 24684, 25904, 26580, 24653, 25605,
+            25643, 24740, 26625, 24311, 26643, 26133, 26771, 24306,
+            24647, 25700, 26681, 24645, 26611, 24637, 24646, 25432, 24593,
+            24590, 26705, 26140, 24595, 24604, 24594, 25568, 26662, 24735,
+            26748, 24775, 24623, 25993,
+            24661, 25426, 26677, 25985, 25915, 24313, 24565, 25965, 26081,
+            25374, 26745, 26531, 24789, 25387, 24294,
+            26682, 26664, 24319, 26674, 24759, 24751, 26752, 24656, 25689, 26224, 24643,
+            25984, 24562, 26061, 25575, 26785,
+            24639, 26592, 24666, 24652, 25858
+        ]
         all_plates = [
             24596, 26679, 24514, 26159, 26672, 25848, 25410, 25967, 24657, 26642, 25962, 26678, 24293, 24296, 26626,
             25931, 24586, 24773, 24633, 26205, 24308, 25642, 25391, 25708, 26668, 26663, 25692, 24754, 24584, 24609,
@@ -243,7 +321,7 @@ if __name__ == '__main__':
 
         all_split = [all_plates, all_plates.copy()]
 
-        args.plates_split = plates_lte3 if plate_split_id else all_split
+        args.plates_split = [plates100, plates100.copy()]
         # args.plates_split = [
         #     [p for p in plates if p != plates[plate_id]],
         #     [plates[plate_id]]
