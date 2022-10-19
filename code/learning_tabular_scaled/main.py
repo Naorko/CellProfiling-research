@@ -52,13 +52,12 @@ def main(model, args, kwargs={}):
         trainer.fit(model, dataloaders['train'], dataloaders['val_for_test'])
         logging.info('training model finished.')
     elif args.mode == 'evaluate':
-        # https://pytorch-lightning.readthedocs.io/en/stable/api/pytorch_lightning.trainer.trainer.Trainer.html#pytorch_lightning.trainer.trainer.Trainer.validate
-        # trainer.validate(dataloaders=val_dataloaders)
         logging.info('loading model from file...')
         model = model.load_from_checkpoint(args.checkpoint)
         model.to(args.device)
         logging.info('loading model from file finished')
 
+        # Create Trainer to evaluate the model
         logger = TensorBoardLogger(args.exp_dir,
                                    name='log_dir')
         trainer = pl.Trainer(max_epochs=args.epochs, progress_bar_refresh_rate=1, logger=logger,
@@ -67,12 +66,14 @@ def main(model, args, kwargs={}):
 
         res = []
 
-        validates = trainer.validate(model, [dataloaders['train'], dataloaders['val_for_test']])
-        for i, (dataset, val_res) in enumerate(zip(['train', 'val'], validates)):
-            mse = val_res[f'val_loss_epoch/dataloader_idx_{i}']
-            pcc = val_res[f'val_pcc_epoch/dataloader_idx_{i}']
+        # Evaluate the train and validation datasets, will get the metrics from validation_step in the model
+        train_val_metrics = trainer.validate(model, [dataloaders['train'], dataloaders['val_for_test']])
+        for i, (dataset, metrics) in enumerate(zip(['train', 'val'], train_val_metrics)):
+            mse = metrics[f'val_loss_epoch/dataloader_idx_{i}']
+            pcc = metrics[f'val_pcc_epoch/dataloader_idx_{i}']
             res.append([dataset, None, None, mse, pcc])
 
+        # Collecting the test datasets
         test_loaders = []
         test_loaders_idx = []
         for plate, plate_data in dataloaders['test'].items():
@@ -80,15 +81,18 @@ def main(model, args, kwargs={}):
                 test_loaders_idx.append((plate, subset))
                 test_loaders.append(dataloader)
 
-        validates = trainer.validate(model, test_loaders[:2])
-        for i, ((plate, subset), val_res) in enumerate(zip(test_loaders_idx[:2], validates)):
-            mse = val_res[f'val_loss_epoch/dataloader_idx_{i}']
-            pcc = val_res[f'val_pcc_epoch/dataloader_idx_{i}']
+        # Evaluate the test datasets
+        test_metrics = trainer.validate(model, test_loaders)
+        for i, ((plate, subset), metrics) in enumerate(zip(test_loaders_idx, test_metrics)):
+            mse = metrics[f'val_loss_epoch/dataloader_idx_{i}']
+            pcc = metrics[f'val_pcc_epoch/dataloader_idx_{i}']
             res.append(['test', plate, subset, mse, pcc])
 
-        res_df = pd.DataFrame(res, columns=['Dataset', 'Plate', 'Subset','MSE', 'PCC'])
+        # Export results
+        res_df = pd.DataFrame(res, columns=['Dataset', 'Plate', 'Subset', 'MSE', 'PCC'])
         save_results(res_df, args)
-        print(res)
+        logging.info('Finished metrics evaluation')
+        print(res_df)
 
 
 def print_exp_description(Model, args, kwargs):
