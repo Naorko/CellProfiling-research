@@ -33,6 +33,30 @@ a possible usage for that is running with the big plate folder only after it was
 -------------
 
 ### Scripts
+#### /code/learning_tabular_scaled/main.py 
+Run models on the tabular data
+##### Usages
+- Usage: `main.py <parameters>` as configed in `/code/learning_tabular_scaled/configuration/config.py`
+
+##### Examples
+- Usage: `main.py` will run over with the default parameters
+
+##### Output
+Generates output in the given experiment directory
+
+-------------
+#### /code/learning_visual/main.py 
+Run models on the visual data
+##### Usages
+- Usage: `main.py <parameters>` as configed in `/code/learning_visual/configuration/config.py`
+
+##### Examples
+- Usage: `main.py` will run over with the default parameters
+
+##### Output
+Generates output in the given experiment directory
+
+-------------
 #### /code/learning/main.py
 ##### Usages
 - Usage 1: without parameters, will run over the default big directory
