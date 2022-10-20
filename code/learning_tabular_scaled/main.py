@@ -66,31 +66,34 @@ def main(model, args, kwargs={}):
 
         res = []
 
-        # Evaluate the train and validation datasets, will get the metrics from validation_step in the model
-        train_val_metrics = trainer.validate(model, [dataloaders['train'], dataloaders['val_for_test']])
-        for i, (dataset, metrics) in enumerate(zip(['train', 'val'], train_val_metrics)):
-            mse = metrics[f'val_loss_epoch/dataloader_idx_{i}']
-            pcc = metrics[f'val_pcc_epoch/dataloader_idx_{i}']
-            res.append([dataset, None, None, mse, pcc])
-
+        # Collecting dataloaders
+        loaders_idx = [('train', None, None), ('val', None, None)]
+        loaders = [dataloaders['train'], dataloaders['val_for_test']]
         # Collecting the test datasets
-        test_loaders = []
-        test_loaders_idx = []
         for plate, plate_data in dataloaders['test'].items():
             for subset, dataloader in plate_data.items():
-                test_loaders_idx.append((plate, subset))
-                test_loaders.append(dataloader)
+                loaders_idx.append(('test', plate, subset))
+                loaders.append(dataloader)
 
-        # Evaluate the test datasets
-        test_metrics = trainer.validate(model, test_loaders)
-        for i, ((plate, subset), metrics) in enumerate(zip(test_loaders_idx, test_metrics)):
+        # Optional: Get Slice of all loaders
+        if split_loaders is not None:
+            loaders = get_slice(loaders, slice_size=10, slice_idx=split_loaders)
+            loaders_idx = get_slice(loaders_idx, slice_size=10, slice_idx=split_loaders)
+
+        # Evaluate the dataloaders, will get the metrics from validation_step in the model
+        loaders_metrics = trainer.validate(model, loaders)
+        for i, (idx, metrics) in enumerate(zip(loaders_idx, loaders_metrics)):
             mse = metrics[f'val_loss_epoch/dataloader_idx_{i}']
             pcc = metrics[f'val_pcc_epoch/dataloader_idx_{i}']
-            res.append(['test', plate, subset, mse, pcc])
+            res.append([*idx, mse, pcc])
 
         # Export results
         res_df = pd.DataFrame(res, columns=['Dataset', 'Plate', 'Subset', 'MSE', 'PCC'])
-        save_results(res_df, args)
+        if split_loaders is None:
+            save_results(res_df, args)
+        else:
+            save_results(res_df, args, f'results_{split_loaders}.csv')
+
         logging.info('Finished metrics evaluation')
         print(res_df)
 
@@ -151,11 +154,11 @@ def test(model, data_loader):
     return results
 
 
-def save_results(res, args, kwargs={}):
+def save_results(res, args, res_name='results.csv', kwargs={}):
     for arg in kwargs:
         res[arg] = kwargs[arg]
 
-    res_dir = os.path.join(args.exp_dir, 'results.csv')
+    res_dir = os.path.join(args.exp_dir, res_name)
     if os.path.isfile(res_dir):
         try:
             prev_res = pd.read_csv(res_dir)
@@ -175,14 +178,24 @@ def save_to_pickle(obj, file_path):
         handle.close()
 
 
+def get_slice(lst, slice_size, slice_idx):
+    start_id = slice_idx * slice_size
+    end_id = start_id + slice_size
+    end_id = len(lst) if len(lst) - end_id < slice_size - 1 else end_id
+    return lst[start_id:end_id]
+
+
 if __name__ == '__main__':
+    # split_loaders = None
+
     inp = int(sys.argv[1])
     # model_id = inp // 100
     # channel_id = (inp // 100) - 1
     lsd = 8  # 2 ** (inp % 10)
     # plate_id = (inp % 100) - 1
-    channel_id = 0
     # split_c = (inp // 10) - 1
+    channel_id = (inp // 100)
+    split_loaders = (inp % 100)
 
     channels_inout = [
         (['AGP'], ['DNA', 'Mito']),
@@ -199,7 +212,8 @@ if __name__ == '__main__':
         (['RNA'], ['AGP', 'ER']),
     ]
 
-    exp_num = 42100 + inp  # if None, new experiment directory is created with the next available number
+    # exp_num = 42100 + inp  # if None, new experiment directory is created with the next available number
+    exp_num = 30101  # if None, new experiment directory is created with the next available number
     DEBUG = False
 
     exps = [(lr, batch_size)
@@ -222,17 +236,19 @@ if __name__ == '__main__':
         args.batch_size = batch_size
         args.epochs = exp_dict['epochs']
 
-        out_chans, in_chans = channels_inout[inp-1]
-        # in_chans = [args.channels[target_channel]]
-        # in_channels = ['GENERAL'] + list(list(combinations(in_chans, 3))[split_c])
-        update_in_channels(['GENERAL'] + in_chans, args)
-        update_out_channels(out_chans, args)
+        in_chans = [args.channels[target_channel]]
+        update_in_channels(in_chans, args)
 
-        exp_dict['input_size'] = len(args.input_fields)
-        exp_dict['target_size'] = len(args.target_fields)
-        model.update_custom_params(exp_dict)
+        # out_chans, in_chans = channels_inout[inp-1]
+        # # in_channels = ['GENERAL'] + list(list(combinations(in_chans, 3))[split_c])
+        # update_in_channels(['GENERAL'] + in_chans, args)
+        # update_out_channels(out_chans, args)
+        #
+        # exp_dict['input_size'] = len(args.input_fields)
+        # exp_dict['target_size'] = len(args.target_fields)
+        # model.update_custom_params(exp_dict)
 
-        # args.mode = 'train'
+        args.mode = 'train'
         args.mode = 'predict'
         args.mode = 'evaluate'
 
@@ -323,9 +339,8 @@ if __name__ == '__main__':
             26578, 25416, 25492, 24654, 26680, 26577, 25590, 25909, 24591, 25741, 26247, 25885, 26772, 24635, 25408,
             26563]
 
-        all_split = [all_plates, all_plates.copy()]
-
-        args.plates_split = [plates100, plates100.copy()]
+        # args.plates_split = [plates100, plates100.copy()]
+        args.plates_split = [all_plates, all_plates.copy()]
         # args.plates_split = [
         #     [p for p in plates if p != plates[plate_id]],
         #     [plates[plate_id]]

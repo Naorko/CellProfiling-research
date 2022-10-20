@@ -12,7 +12,6 @@
 #SBATCH --mail-user=naorko@post.bgu.ac.il	### user email for sending job status
 ##SBATCH --mail-type=BEGIN			### conditions when to send the email. ALL,BEGIN,END,FAIL, REQUEU, NONE
 
-##SBATCH --gres=gpu:1				### number of GPUs, ask for more than 1 only if you can parallelize your code for multi GPU
 ##SBATCH --mem=32G				### ammount of RAM memory
 ##SBATCH --cpus-per-task=8			### number of CPU cores
 
@@ -24,4 +23,4 @@ echo -e "SLURM_JOB_NODELIST:\t" $SLURM_JOB_NODELIST "\n\n"
 ### Start you code below ####
 module load anaconda				### load anaconda module (must present when working with conda environments)
 source activate tf-env				### activating environment, environment must be configured before running the jobcat
-tensorboard --port=9989 --bind_all --logdir "$CELL_STORAGE/visual_models_results" ##3/UNET4TO1/channel DNA/log_dir"
+tensorboard --port=9989 --bind_all --logdir "$CELL_STORAGE/tabular_models_results" ##3/UNET4TO1/channel DNA/log_dir"
