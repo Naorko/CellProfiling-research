@@ -164,6 +164,8 @@ def extract_ss_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21)):
     for t in th_range:
         gtr_t_cnt = (cpdf_norm >= t).sum().sum()
         ss_norm = gtr_t_cnt / rep_cnt
+        # Add Normalizations for feature count
+        ss_norm = ss_norm / fet_cnt
         mas = np.sqrt((max(med_corr, 0) * ss_norm) / fet_cnt)
         res[f'SS_{t}'] = ss_norm
         res[f'MAS_{t}'] = mas
@@ -171,8 +173,11 @@ def extract_ss_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21)):
     return pd.Series(res)
 
 
-def extract_ss_score(df, expr_fld, th_range=[2, 6, 10, 14], cpd_id_fld='Metadata_broad_sample'):
-    cur_res = df.groupby(cpd_id_fld).apply(extract_ss_score_for_compound, abs_zscore=False,
+def extract_ss_score(df, expr_fld, th_range=None, cpd_id_fld='Metadata_broad_sample'):
+    if th_range is None:
+        th_range = [2, 6, 10, 14]
+    cur_res = df.groupby(cpd_id_fld).apply(extract_ss_score_for_compound,
+                                           abs_zscore=False,
                                            th_range=th_range)
     del df
     cur_res.to_csv(os.path.join(expr_fld, 'ss-scores.csv'))
@@ -326,20 +331,24 @@ if __name__ == '__main__':
     if sys.argv[1] == '-p':  # Means to run pure zscores run
         exp_fld = sys.argv[2]
         plates = glob(os.path.join(exp_fld, '*', 'results', '*'))
-        try:
-            plate_idx = int(sys.argv[3])
-            plate = plates[plate_idx]
-            pure_fld = os.path.join(exp_fld, 'zscores')
-            os.makedirs(pure_fld, exist_ok=True)
-            dest = os.path.join(pure_fld, os.path.basename(plate))
-            print(f'Extract pure z-scores for plate {plate}')
-            load_pure_zscores(plate, by_well=True,
-                              index_fields=None,
-                              well_index=None,
-                              dest=dest)
-            print('Done!')
-        except:
-            print(f'Error while reading plate {sys.argv[3]}')
+        plates.sort()
+        plate_idx = int(sys.argv[3])
+        plates_n = 406
+        # plate = plates[plate_idx]
+        plates = [plates[plate_idx + (i*plates_n)] for i in range(len(plates)//plates_n)]
+        for plate in plates:
+            try:
+                pure_fld = os.path.join(os.path.dirname(os.path.dirname(plate)), 'zscores')
+                os.makedirs(pure_fld, exist_ok=True)
+                dest = os.path.join(pure_fld, os.path.basename(plate))
+                print(f'Extract pure z-scores for plate {plate}')
+                load_pure_zscores(plate, by_well=True,
+                                  index_fields=None,
+                                  well_index=None,
+                                  dest=dest)
+                print(f'Done with plate {plate}!')
+            except:
+                print(f'Error while reading plate {sys.argv[3]}')
 
     elif sys.argv[1] == '-s':  # Means to extract ss scores
         exp_fld = sys.argv[2]

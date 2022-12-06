@@ -13,7 +13,7 @@ from pathlib import Path
 exp_number = None
 
 
-def parse_args(channel_idx=0, exp_num=None):
+def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=None):
     global exp_number
     exp_number = exp_num
 
@@ -35,7 +35,11 @@ def parse_args(channel_idx=0, exp_num=None):
                         help='the field that split the train data')
     parser.add_argument('--sample_n', type=int, default=16,
                         help='Sample size for train in split')
-    parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns.txt',
+    # parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns.json',
+    #                     help='json file containing a dictionary maps the different fields into channels')
+    #parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns-fs.json',
+    #                    help='json file containing a dictionary maps the different fields into channels')
+    parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns-all-fs.json',
                         help='json file containing a dictionary maps the different fields into channels')
     parser.add_argument('--index_fields', type=list,
                         default=['Plate', 'Metadata_ASSAY_WELL_ROLE', 'Metadata_broad_sample',
@@ -86,10 +90,12 @@ def parse_args(channel_idx=0, exp_num=None):
 
     args.cols_dict = json.load(open(args.cols_file, 'r'))
 
-    in_channels = ['GENERAL'] + args.channels[:channel_idx] + args.channels[channel_idx + 1:]
-    update_in_channels(in_channels, args)
+    if channel_idx is not None:
+        in_channels = ['GENERAL'] + args.channels[:channel_idx] + args.channels[channel_idx + 1:]
+        out_channels = [args.channels[channel_idx]]
 
-    out_channels = [args.channels[channel_idx]]
+    print(in_channels)
+    update_in_channels(in_channels, args)
     update_out_channels(out_channels, args)
 
     setup_logging(args)
@@ -121,7 +127,8 @@ def update_out_channels(channels, args):
 
 
 def update_norm_pth(args):
-    n_pth = fr"/storage/users/g-and-n/plates/{'_'.join(args.input_channels)}-{'_'.join(args.target_channels)}.normsav"
+    file_name = f"{'_'.join(args.input_channels)}-{'_'.join(args.target_channels)}"
+    n_pth = fr"/storage/users/g-and-n/plates/norm_saves_fs/{file_name}.normsav"
     args.norm_params_path = n_pth
 
 
