@@ -7,10 +7,10 @@
 
 #SBATCH --partition rtx2080			### specify partition name where to run a job. debug: 2 hours limit; short: 7 days limit; gtx1080: 7 days
 #SBATCH --time 7-00:00:00			### limit the time of job running, partition limit can override this. Format: D-H:MM:SS
-#SBATCH --job-name CP-RT-E	### name of the job
-#SBATCH --output job_outputs/tabular_model/all-c1to1-eval/%a.out			### output log for running job - %J for job number
+#SBATCH --job-name CP-RT-T	### name of the job
+#SBATCH --output job_outputs/tabular_model/fs_run/55-test.out
 #SBATCH --mail-user=naorko@post.bgu.ac.il	### user email for sending job status
-#SBATCH --mail-type=END ###ARRAY_TASKS,FAIL			### conditions when to send the email. ALL,BEGIN,END,FAIL, REQUEU, NONE
+#SBATCH --mail-type=END ##ARRAY_TASKS,FAIL			### conditions when to send the email. ALL,BEGIN,END,FAIL, REQUEU, NONE
 
 #SBATCH --gpus=1				### number of GPUs, ask for more than 1 only if you can parallelize your code for multi GPU
 ##SBATCH --mem=32G				### amount of RAM memory
@@ -19,9 +19,12 @@
 ##SBATCH --array=100-106,110-116,120-126,130-136,140-146,200-206,210-216,220-226,230-236,240-246
 ##SBATCH --array=101-135,201-235,301-335,401-435,501-535%8
 ##SBATCH --array=11-15,21-25,31-35,41-45
-##SBATCH --array=1-12
-#$SBATCH --array=1-5
-#SBATCH --array=1-40,101-140,200-240,300-340,400-440
+##SBATCH --array=13-14
+##SBATCH --array=1-5
+##SBATCH --array=1-40,101-140,200-240 #,300-340,400-440
+##SBATCH --array=0-62,126-188,252-314,378-629,693-755,819-881
+#SBATCH --array=0
+
 
 ### Print some data to output file ###
 echo `date`

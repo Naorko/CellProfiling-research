@@ -6,6 +6,7 @@ plates/
 plots/
 *.pdf
 code/tryout.py
+code/pycytominer/
 samples
 ####
 

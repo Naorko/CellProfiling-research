@@ -22,9 +22,12 @@ class TabularAE(pl.LightningModule):
         self.target_size = hparams.target_size
         self.latent_space_dim = hparams.latent_space_dim
         self.bilinear = True
-
+    
+        print(f'Model size configurations:')
+        print(f'\tInput size: {self.input_size}')
         enc_dims = [2 ** i for i in range(1, 16)
-                    if self.latent_space_dim <= 2 ** i <= self.input_size]
+                    if self.latent_space_dim <= 2 ** i <= self.input_size+1]
+        print(f'\tEncode size: {enc_dims}')
         enc_layers = [[nn.Linear(self.input_size, enc_dims[-1]), nn.ReLU(inplace=True)]]
         enc_layers += [[nn.Linear(enc_dims[len(enc_dims) - i], enc_dims[len(enc_dims) - i - 1]),
                         nn.ReLU(inplace=True)]
@@ -50,13 +53,15 @@ class TabularAE(pl.LightningModule):
         # )
 
         dec_dims = [2 ** i for i in range(16, 1, -1)
-                    if self.latent_space_dim <= 2 ** i <= self.target_size]
+                    if self.latent_space_dim <= 2 ** i <= self.target_size+1]
+        print(f'\tDecode size: {dec_dims}')
         dec_layers = [[nn.Linear(dec_dims[len(dec_dims) - i], dec_dims[len(dec_dims) - i - 1]),
                        nn.ReLU(inplace=True)]
                       for i in range(1, len(dec_dims))]
         dec_layers += [[nn.Linear(dec_dims[0], self.target_size)]]
         dec_layers = sum(dec_layers, [])
         self.decoder = nn.Sequential(*dec_layers)
+        print(f'\tTarget size: {self.target_size}')
 
         # self.decoder = nn.Sequential(
         #     nn.Linear(10, self.target_size),
@@ -93,7 +98,7 @@ class TabularAE(pl.LightningModule):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=1e-8)
 
     def configure_callbacks(self):
-        early_stop = EarlyStopping(monitor="val_loss", mode="min", patience=6, verbose=True)
+        early_stop = EarlyStopping(monitor="val_loss", mode="min", min_delta=0.002, patience=4, verbose=True)
         checkpoint = ModelCheckpoint(monitor="val_loss")
         return [early_stop, checkpoint]
 

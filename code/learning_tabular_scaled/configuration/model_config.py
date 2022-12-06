@@ -9,8 +9,11 @@ input_size, target_size, lr, epochs, latent_space_dim = exp_values
 
 class Model_Config(Enum):
     TAE = ('autoencoder', TabularAE,
-                {'input_size': input_size, 'target_size': target_size, 'lr': lr,
-                 'epochs': epochs, 'latent_space_dim': latent_space_dim})
+           {'input_size': input_size,
+            'target_size': target_size,
+            'lr': lr,
+            'epochs': epochs,
+            'latent_space_dim': latent_space_dim})
 
     def __init__(self, model_name, model_class, params):
         self.model_name = model_name
