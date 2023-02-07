@@ -10,7 +10,7 @@ from sklearn.metrics import accuracy_score
 
 
 def get_median_correlation(df, is_binary=False):
-    if cpd_replicates.shape[0] == 1:
+    if df.shape[0] == 1:
         return 1
 
     if is_binary:
