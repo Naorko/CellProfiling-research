@@ -2,12 +2,22 @@ import os
 import pickle
 import sys
 from glob import glob
+from itertools import combinations
 
 import numpy as np
 import pandas as pd
+from sklearn.metrics import accuracy_score
 
 
-def get_median_correlation(df):
+def get_median_correlation(df, is_binary=False):
+    if cpd_replicates.shape[0] == 1:
+        return 1
+
+    if is_binary:
+        acc_scores = [accuracy_score(row1, row2) for ((_, row1), (_, row2)) in
+                      combinations(df.astype('float64').iterrows(), 2)]
+        return np.median(acc_scores)
+
     cor_mat = df.astype('float64').T.corr(method='pearson').values
     cor_mat = np.nan_to_num(cor_mat)
 
@@ -70,11 +80,9 @@ if __name__ == '__main__':
         zscores[model]['trt'] = zscores[model]['all'].query('Metadata_ASSAY_WELL_ROLE == "treated"')
         # zscores[model]['ctl'] = zscores[model]['all'].query('Metadata_ASSAY_WELL_ROLE == "mock"')
 
-
     with open(null_dist_path, 'rb') as f:
         # Load the pickle file
         null_distribution_replicates = pickle.load(f)
-
 
     cpds = list(null_distribution_replicates.keys())
     cpds.sort()
@@ -89,14 +97,14 @@ if __name__ == '__main__':
         for cpd in cpds:
             print(cpd)
             cpd_replicates = zscores[model]['trt'][zscores[model]['trt'].index.isin([cpd], 2)].copy()
-            cpd_med_score = get_median_correlation(cpd_replicates)
+            cpd_med_score = get_median_correlation(cpd_replicates, binarize)
             del cpd_replicates
 
             null_dist = null_distribution_replicates[cpd]
             null_dist_scores = []
             for null_idxs in null_dist:
                 cur_null = zscores[model]['trt'][zscores[model]['trt'].index.isin(null_idxs)].copy()
-                curr_null_score = get_median_correlation(cur_null)
+                curr_null_score = get_median_correlation(cur_null, binarize)
                 null_dist_scores.append(curr_null_score)
                 del cur_null
 
