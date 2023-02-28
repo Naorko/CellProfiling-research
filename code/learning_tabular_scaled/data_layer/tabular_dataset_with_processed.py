@@ -126,7 +126,7 @@ class TabularDataset(Dataset):
             else:
                 return inp, target
         else:
-            return inp
+            return ind, inp
 
     def get_index(self):
         index = pd.DataFrame(columns=self.index_fields)

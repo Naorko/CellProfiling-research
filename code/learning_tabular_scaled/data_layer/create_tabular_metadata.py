@@ -51,7 +51,9 @@ if __name__ == '__main__':
     train_labels = ['mock']
 
     i = int(sys.argv[1])
+    # i=0
     plates = [p.split('.')[0] for p in os.listdir(plates_fld)][i * 6:i * 6 + 6]
 
     mt_df = create_tabular_metadata(plates_fld, plates, label_field, train_labels, by_fld, sample_n)
+    mt_df.loc[mt_df['Metadata_ASSAY_WELL_ROLE'].isna(), 'Metadata_ASSAY_WELL_ROLE'] = 'mock'
     mt_df.to_csv(os.path.join(output_fld, f'{i}.csv'), index=False)

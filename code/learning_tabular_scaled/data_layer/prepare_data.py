@@ -41,6 +41,10 @@ def load_data(args):
         mt_df.to_csv(args.metadata_path, index=False)
     else:
         mt_df = pd.read_csv(args.metadata_path, dtype={'Plate': int, 'Count': int})
+
+        #TODO - fix reproduce metadata table and remove following line
+        mt_df.loc[mt_df['Metadata_ASSAY_WELL_ROLE'].isna(), 'Metadata_ASSAY_WELL_ROLE'] = 'mock'
+
         mt_df[args.split_field] = mt_df[args.split_field].apply(eval)
         plates = [p for p in all_plates if p not in mt_df['Plate'].unique()]
         if plates:
@@ -64,7 +68,8 @@ def load_data(args):
 
 def split_by_plates(df, args) -> dict:
     train_plates, test_plates = args.plates_split
-    train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)  # TODO: SEED
+    # train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)
+    val_plates = train_plates.copy()
 
     logging.info(f'Train Plates: {" ".join(str(t) for t in train_plates)}')
     logging.info(f'Validation Plates: {" ".join(str(t) for t in val_plates)}')
@@ -74,7 +79,7 @@ def split_by_plates(df, args) -> dict:
         'train': list(df[(df['Plate'].isin(train_plates)) & (df[args.label_field].isin(args.train_labels)) & (
                 df['Mode'] == 'train')].index),
         'val': list(df[(df['Plate'].isin(val_plates)) & (df[args.label_field].isin(args.train_labels)) & (
-                df['Mode'] == 'train')].index),
+                df['Mode'] == 'val')].index),
         'test': {}
     }
 
@@ -200,7 +205,7 @@ def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target
     max_p = 0
     min_p = 65535
 
-    for samples in train_loader:
+    for ind, samples in train_loader:
         samples = samples.to(device)
         batch_mean, batch_std = torch.std_mean(samples.float(), dim=(0,))
         max_p = max(torch.max(samples.float()), max_p)
