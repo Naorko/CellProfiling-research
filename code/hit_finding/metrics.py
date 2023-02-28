@@ -164,8 +164,6 @@ def extract_ss_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21)):
     for t in th_range:
         gtr_t_cnt = (cpdf_norm >= t).sum().sum()
         ss_norm = gtr_t_cnt / rep_cnt
-        # Add Normalizations for feature count
-        ss_norm = ss_norm / fet_cnt
         mas = np.sqrt((max(med_corr, 0) * ss_norm) / fet_cnt)
         res[f'SS_{t}'] = ss_norm
         res[f'MAS_{t}'] = mas
@@ -173,14 +171,62 @@ def extract_ss_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21)):
     return pd.Series(res)
 
 
-def extract_ss_score(df, expr_fld, th_range=None, cpd_id_fld='Metadata_broad_sample'):
-    if th_range is None:
-        th_range = [2, 6, 10, 14]
-    cur_res = df.groupby(cpd_id_fld).apply(extract_ss_score_for_compound,
-                                           abs_zscore=False,
-                                           th_range=th_range)
+def extract_new_score_for_compound(cpdf, abs_zscore=True, th_range=range(2, 21), sqrt_norm=True, max_rep=None, n=1, value='median'):
+    res_cols = ['Rep_Cnt', *sum([[f'SS_{t}'] for t in th_range], [])]
+    res = []
+
+    rep_cnt, _ = cpdf.shape
+    if max_rep and max_rep >= rep_cnt:
+        n = 1
+
+    for _ in range(n):
+        cur_res = []
+
+        cur_cpdf = cpdf
+        rep_cnt, fet_cnt = cur_cpdf.shape
+        if max_rep and max_rep < rep_cnt:
+            cur_cpdf = cpdf.sample(max_rep)
+            rep_cnt = max_rep
+
+        cur_res.append(rep_cnt)
+
+        cpdf_norm = cur_cpdf
+        if abs_zscore:
+            cpdf_norm = abs(cpdf_norm)
+        
+        if value =='mean':
+            cpd = cpdf_norm.mean()
+        else:
+            cpd = cpdf_norm.median()
+        if sqrt_norm:
+            cpd = cpd * np.sqrt(rep_cnt)
+
+
+        for t in th_range:
+            gtr_t_cnt = (cpd >= t).sum()
+            ss_norm = gtr_t_cnt / rep_cnt
+            # Add Normalizations for feature count
+            ss_norm = ss_norm / fet_cnt
+            cur_res.append(ss_norm)
+
+        res.append(cur_res)
+
+    return pd.DataFrame(res, columns=res_cols)
+
+
+def extract_ss_score(df, expr_fld, th_range=[2, 6, 10, 14], cpd_id_fld='Metadata_broad_sample',new_ss = True, value='mean',abs_zscore=False):
+    if new_ss:
+        print(f'calc with {value}')
+        cur_res = df.groupby(cpd_id_fld).apply(extract_new_score_for_compound, abs_zscore=abs_zscore,
+                                               th_range=th_range, value=value)
+        cur_res.to_csv(os.path.join(expr_fld, f'ss-new-scores-{value}.csv'))
+        print(f'saved to {expr_fld}')
+    else:
+        cur_res = df.groupby(cpd_id_fld).apply(extract_ss_score_for_compound, abs_zscore=abs_zscore,
+                                               th_range=th_range)
+        cur_res.to_csv(os.path.join(expr_fld, f'ss-scores.csv'))
+        
     del df
-    cur_res.to_csv(os.path.join(expr_fld, 'ss-scores.csv'))
     del cur_res
 
 
@@ -331,24 +377,20 @@ if __name__ == '__main__':
     if sys.argv[1] == '-p':  # Means to run pure zscores run
         exp_fld = sys.argv[2]
         plates = glob(os.path.join(exp_fld, '*', 'results', '*'))
-        plates.sort()
-        plate_idx = int(sys.argv[3])
-        plates_n = 406
-        # plate = plates[plate_idx]
-        plates = [plates[plate_idx + (i*plates_n)] for i in range(len(plates)//plates_n)]
-        for plate in plates:
-            try:
-                pure_fld = os.path.join(os.path.dirname(os.path.dirname(plate)), 'zscores')
-                os.makedirs(pure_fld, exist_ok=True)
-                dest = os.path.join(pure_fld, os.path.basename(plate))
-                print(f'Extract pure z-scores for plate {plate}')
-                load_pure_zscores(plate, by_well=True,
-                                  index_fields=None,
-                                  well_index=None,
-                                  dest=dest)
-                print(f'Done with plate {plate}!')
-            except:
-                print(f'Error while reading plate {sys.argv[3]}')
+        try:
+            plate_idx = int(sys.argv[3])
+            plate = plates[plate_idx]
+            pure_fld = os.path.join(exp_fld, 'zscores')
+            os.makedirs(pure_fld, exist_ok=True)
+            dest = os.path.join(pure_fld, os.path.basename(plate))
+            print(f'Extract pure z-scores for plate {plate}')
+            load_pure_zscores(plate, by_well=True,
+                              index_fields=None,
+                              well_index=None,
+                              dest=dest)
+            print('Done!')
+        except:
+            print(f'Error while reading plate {sys.argv[3]}')
 
     elif sys.argv[1] == '-s':  # Means to extract ss scores
         exp_fld = sys.argv[2]
@@ -359,7 +401,8 @@ if __name__ == '__main__':
         plates = glob(os.path.join(cur_fld, 'zscores', '*'))
         cur_df = pd.concat([pd.read_csv(pth, index_col=[0, 1, 2, 3]) for pth in plates])
         cur_df = cur_df.query('Metadata_ASSAY_WELL_ROLE == "treated"').droplevel(1)
-        extract_ss_score(cur_df, cur_fld, th_range=range(2, 21), cpd_id_fld='Metadata_broad_sample')
+        print(f'start running for {cur_fld}')
+        extract_ss_score(cur_df, cur_fld, th_range=range(2, 21), cpd_id_fld='Metadata_broad_sample',new_ss = True, value='mean')
         # except:
         #     print(f'Error while reading channel {sys.argv[3]}')
 

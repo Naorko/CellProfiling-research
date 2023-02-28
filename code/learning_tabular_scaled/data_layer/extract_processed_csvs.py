@@ -6,7 +6,7 @@ sys.path.append(os.path.abspath('../..'))
 from collections import defaultdict
 import pandas as pd
 from tqdm import tqdm
-from learning_tabular_scaled.configuration.config import parse_args
+from code.learning_tabular_scaled.configuration.config import parse_args
 
 
 def main(metadata_df, root_dir, out_dir,normalize_by_plate=False):
