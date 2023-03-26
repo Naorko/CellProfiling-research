@@ -64,7 +64,8 @@ def load_data(args):
 
 def split_by_plates(df, args) -> dict:
     train_plates, test_plates = args.plates_split
-    train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)  # TODO: SEED
+    # train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)
+    val_plates = train_plates.copy()
 
     logging.info(f'Train Plates: {" ".join(str(t) for t in train_plates)}')
     logging.info(f'Validation Plates: {" ".join(str(t) for t in val_plates)}')
@@ -74,7 +75,7 @@ def split_by_plates(df, args) -> dict:
         'train': list(df[(df['Plate'].isin(train_plates)) & (df[args.label_field].isin(args.train_labels)) & (
                 df['Mode'] == 'train')].index),
         'val': list(df[(df['Plate'].isin(val_plates)) & (df[args.label_field].isin(args.train_labels)) & (
-                df['Mode'] == 'train')].index),
+                df['Mode'] == 'val')].index),
         'test': {}
     }
 

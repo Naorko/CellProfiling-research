@@ -200,6 +200,7 @@ if __name__ == '__main__':
         # (['RNA'], ['AGP', 'ER'], 16),
         *[([chan], [chan], 8) for chan in channels],
         # *[([chan], channels[:i] + channels[i + 1:], 16) for i, chan in enumerate(channels)],
+        # (['AGP', 'DNA', 'ER', 'Mito', 'RNA'], ['AGP', 'DNA', 'ER', 'Mito', 'RNA'], 8)ת
     ]
 
     # exp_id = inp // 63
@@ -209,7 +210,7 @@ if __name__ == '__main__':
     exp_num = 55
     DEBUG = False
 
-    out_channels, in_channels, lsd = (['AGP', 'DNA', 'ER', 'Mito', 'RNA'], ['AGP', 'DNA', 'ER', 'Mito', 'RNA'], 8)#exp_params[inp]
+    out_channels, in_channels, lsd = #exp_params[inp]
     # if exp_num != 11:
     #     in_channels = ['GENERAL'] + in_channels
     args = parse_args(exp_num=exp_num, in_channels=in_channels, out_channels=out_channels)

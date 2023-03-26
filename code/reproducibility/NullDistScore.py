@@ -89,7 +89,6 @@ if __name__ == '__main__':
     cpds = cpds[slice_id * slice_size:(slice_id + 1) * slice_size]
 
     for model in zscores.keys():
-        print(5, model)
         cur_dest = os.path.join(dest, model)
         os.makedirs(cur_dest, exist_ok=True)
         cur_dest = os.path.join(cur_dest, f'{slice_id}.pickle')
