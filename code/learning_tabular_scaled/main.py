@@ -190,7 +190,10 @@ if __name__ == '__main__':
     channels = ['AGP', 'DNA', 'ER', 'Mito', 'RNA']
     split_loaders = None
 
-    inp = int(sys.argv[1])
+    if len(sys.argv)>1:
+        inp = int(sys.argv[1])
+    else:
+        inp=1
 
     exp_params = [
         # (['AGP'], ['Mito', 'RNA'], 16),
@@ -200,17 +203,17 @@ if __name__ == '__main__':
         # (['RNA'], ['AGP', 'ER'], 16),
         *[([chan], [chan], 8) for chan in channels],
         # *[([chan], channels[:i] + channels[i + 1:], 16) for i, chan in enumerate(channels)],
-        # (['AGP', 'DNA', 'ER', 'Mito', 'RNA'], ['AGP', 'DNA', 'ER', 'Mito', 'RNA'], 8)ת
+        # (['AGP', 'DNA', 'ER', 'Mito', 'RNA'], ['AGP', 'DNA', 'ER', 'Mito', 'RNA'], 8),
     ]
 
     # exp_id = inp // 63
     # split_loaders = inp % 63  # slice_size = 13, split_loaders=0-62
 
     # exp_num = [21, 11, 41][exp_id // 5]
-    exp_num = 55
+    exp_num = 50001
     DEBUG = False
 
-    out_channels, in_channels, lsd = #exp_params[inp]
+    out_channels, in_channels, lsd = exp_params[inp]
     # if exp_num != 11:
     #     in_channels = ['GENERAL'] + in_channels
     args = parse_args(exp_num=exp_num, in_channels=in_channels, out_channels=out_channels)
@@ -325,8 +328,10 @@ if __name__ == '__main__':
         26578, 25416, 25492, 24654, 26680, 26577, 25590, 25909, 24591, 25741, 26247, 25885, 26772, 24635, 25408,
         26563]
 
+    plates4 = [25579,25580,25581,25583]
     # args.plates_split = [plates100, plates100.copy()]
-    args.plates_split = [all_plates, all_plates.copy()]
+    # args.plates_split = [all_plates, all_plates.copy()]
+    args.plates_split = [plates4, plates4.copy()]
     # args.plates_split = [
     #     [p for p in plates if p != plates[plate_id]],
     #     [plates[plate_id]]

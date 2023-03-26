@@ -41,6 +41,10 @@ def load_data(args):
         mt_df.to_csv(args.metadata_path, index=False)
     else:
         mt_df = pd.read_csv(args.metadata_path, dtype={'Plate': int, 'Count': int})
+
+        #TODO - fix reproduce metadata table and remove following line
+        mt_df.loc[mt_df['Metadata_ASSAY_WELL_ROLE'].isna(), 'Metadata_ASSAY_WELL_ROLE'] = 'mock'
+
         mt_df[args.split_field] = mt_df[args.split_field].apply(eval)
         plates = [p for p in all_plates if p not in mt_df['Plate'].unique()]
         if plates:
@@ -201,7 +205,7 @@ def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target
     max_p = 0
     min_p = 65535
 
-    for samples in train_loader:
+    for ind, samples in train_loader:
         samples = samples.to(device)
         batch_mean, batch_std = torch.std_mean(samples.float(), dim=(0,))
         max_p = max(torch.max(samples.float()), max_p)
