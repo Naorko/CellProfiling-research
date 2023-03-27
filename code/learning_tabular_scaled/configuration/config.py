@@ -13,7 +13,8 @@ from pathlib import Path
 exp_number = None
 
 
-def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=None):
+# Parse the inline arguments, see help for each parameter for details
+def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=None, cols_file=None):
     global exp_number
     exp_number = exp_num
 
@@ -35,11 +36,7 @@ def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=No
                         help='the field that split the train data')
     parser.add_argument('--sample_n', type=int, default=16,
                         help='Sample size for train in split')
-    # parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns.json',
-    #                     help='json file containing a dictionary maps the different fields into channels')
-    #parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns-fs.json',
-    #                    help='json file containing a dictionary maps the different fields into channels')
-    parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns-all-fs.json',
+    parser.add_argument('--cols_file', type=Path, default='/storage/users/g-and-n/plates/columns.json',
                         help='json file containing a dictionary maps the different fields into channels')
     parser.add_argument('--index_fields', type=list,
                         default=['Plate', 'Metadata_ASSAY_WELL_ROLE', 'Metadata_broad_sample',
@@ -88,6 +85,9 @@ def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=No
 
     args, _ = parser.parse_known_args()
 
+    if cols_file:
+        args.cols_file = cols_file
+
     args.cols_dict = json.load(open(args.cols_file, 'r'))
 
     if channel_idx is not None:
@@ -104,12 +104,14 @@ def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=No
     return args
 
 
+# Update the input channels and fields
 def update_in_channels(channels, args):
     args.input_channels = channels
     args.input_fields = sum([args.cols_dict[k] for k in args.input_channels], [])
     update_norm_pth(args)
 
 
+# Update the output channels and fields
 def update_out_channels(channels, args):
     args.target_channels = channels
     args.target_fields = sum([args.cols_dict[k] for k in args.target_channels], [])
@@ -126,19 +128,21 @@ def update_out_channels(channels, args):
         args.checkpoint = get_checkpoint(args.exp_dir)
 
 
+# Setting the normalization parameters file location by input/output channels
 def update_norm_pth(args):
     file_name = f"{'_'.join(args.input_channels)}-{'_'.join(args.target_channels)}"
     n_pth = fr"/storage/users/g-and-n/plates/norm_saves_fs/{file_name}.normsav"
     args.norm_params_path = n_pth
 
 
+# Set logger
 def setup_logging(args):
     head = '{asctime}:{levelname}: {message}'
     handlers = [logging.StreamHandler(sys.stderr)]
     logging.basicConfig(level=logging.INFO, format=head, style='{', handlers=handlers)
-    # logging.info('Start with arguments {}'.format(args))
 
 
+# Set a seed
 def setup_determinism(args):
     # torch.backends.cudnn.deterministic = True
     # torch.backends.cudnn.benchmark = False
@@ -147,6 +151,7 @@ def setup_determinism(args):
     random.seed(args.seed)
 
 
+# Automatic search for a saved model file
 def get_checkpoint(LOG_DIR):
     base = f'{LOG_DIR}/log_dir/'
     try:

@@ -228,7 +228,13 @@ if __name__ == '__main__':
     DEBUG = False
 
     out_channels, in_channels, lsd = exp_params[inp]
-    args = parse_args(exp_num=exp_num, in_channels=in_channels, out_channels=out_channels)
+    cols_files = {'all': '/storage/users/g-and-n/plates/columns.json',
+                  'feature_selection_by_channel': '/storage/users/g-and-n/plates/columns-fs.json',
+                  'feature_selection_all_together': '/storage/users/g-and-n/plates/columns-all-fs.json'}
+    args = parse_args(exp_num=exp_num,
+                      in_channels=in_channels,
+                      out_channels=out_channels,
+                      cols_file=cols_files['feature_selection_by_channel'])
 
     # exps = [(lr, batch_size)
     #         for batch_size in [512, 1024, 2048, 4096, 8196]
