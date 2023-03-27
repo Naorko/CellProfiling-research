@@ -1,3 +1,4 @@
+# The main file of the package, starts the learning, predicting and evaluating process
 import logging
 import os
 import pickle
@@ -18,6 +19,14 @@ import pytorch_lightning as pl
 import torch
 
 
+# The main function
+#   model: the neural network model configuration (from configuration.model_config)
+#   args: arguments configurations (from configuration.config)
+# Note: run defined by arg.mode:
+#   - train: will train a new model by the configurations
+#   - evaluate: will load and evaluate the model, saving the aggregated metrics per dataloader (MSE and PCC)
+#   - predict : will load (only if exist) a model and out the prediction error for every plate
+#               in dataloaders['test']
 def main(model, args, kwargs={}):
     print_exp_description(model, args, kwargs)
 
@@ -36,10 +45,8 @@ def main(model, args, kwargs={}):
 
         logging.info('testing model...')
         model.eval()
-        res = test_by_partition(model, dataloaders['test'], args.exp_dir)
+        test_by_partition(model, dataloaders['test'], args.exp_dir)
         logging.info('testing model finished...')
-
-        save_results(res, args, kwargs=kwargs)
 
     elif args.mode == 'evaluate':
         logging.info('loading model from file...')
@@ -65,7 +72,7 @@ def main(model, args, kwargs={}):
                 loaders_idx.append(('test', plate, subset))
                 loaders.append(dataloader)
 
-        # Optional: Get Slice of all loaders
+        # Optional: Get Slice of all loaders (for parallelism)
         if split_loaders is not None:
             loaders = get_slice(loaders, slice_size=13, slice_idx=split_loaders)
             loaders_idx = get_slice(loaders_idx, slice_size=13, slice_idx=split_loaders)
@@ -80,9 +87,9 @@ def main(model, args, kwargs={}):
         # Export results
         res_df = pd.DataFrame(res, columns=['Dataset', 'Plate', 'Subset', 'MSE', 'PCC'])
         if split_loaders is None:
-            save_results(res_df, args)
+            save_results(res_df, args.exp_dir)
         else:
-            save_results(res_df, args, f'results_{split_loaders}.csv')
+            save_results(res_df, args.exp_dir, f'results_{split_loaders}.csv')
 
         logging.info('Finished metrics evaluation')
         print(res_df)
@@ -97,8 +104,10 @@ def main(model, args, kwargs={}):
                              auto_scale_batch_size='binsearch', weights_summary='full')
         trainer.fit(model, dataloaders['train'], dataloaders['val_for_test'])
         logging.info('training model finished.')
+        save_to_pickle(args, os.path.join(args.exp_dir, 'args.pkl'))
 
 
+# Print the experiment configurations
 def print_exp_description(Model, args, kwargs):
     description = 'Training Model ' + Model.name + ' with target ' + '-'.join(args.target_channels)
     for arg in kwargs:
@@ -118,11 +127,14 @@ def print_exp_description(Model, args, kwargs):
     print()
 
 
+# Create the prediction error output for every plate in test_dataloaders
+#   model: the trained neural network model to use
+#   test_dataloaders: dataloaders to predict
+#   exp_dir: the experiment directory, the output will be in a sub-folder named "results"
 def test_by_partition(model, test_dataloaders, exp_dir):
     result_path = os.path.join(exp_dir, 'results')
     os.makedirs(result_path, exist_ok=True)
 
-    results = []
     for plate, plate_data in test_dataloaders.items():
         res_plate_path = os.path.join(result_path, f'{plate}.csv')
         if not os.path.exists(res_plate_path):
@@ -135,15 +147,11 @@ def test_by_partition(model, test_dataloaders, exp_dir):
             plate_res.to_csv(res_plate_path, index=False)
             del plate_res
             del plate_results
-        # else:
-        #     plate_res = pd.read_csv(res_plate_path)
-
-        # results.append(plate_res)
-
-    # res = pd.concat(results)
-    return pd.DataFrame()
 
 
+# Create the prediction error output for a single dataloader
+#   model: the trained neural network model to use
+#   data_loader: dataloader to predict
 def test(model, data_loader):
     pred, mse, pcc = zip(*[unify_test_function(model, batch, mse_reduction='none') for batch in data_loader])
     mses = [i.cpu().numpy() for i in mse]
@@ -155,11 +163,11 @@ def test(model, data_loader):
     return results
 
 
-def save_results(res, args, res_name='results.csv', kwargs={}):
-    for arg in kwargs:
-        res[arg] = kwargs[arg]
-
-    res_dir = os.path.join(args.exp_dir, res_name)
+# Save results of evaluations, metrics per partition of the dataloader
+#   res: a dataframe contains the metrics data
+#   exp_dir: the experiment folder to use
+def save_results(res, exp_dir, res_name='results.csv'):
+    res_dir = os.path.join(exp_dir, res_name)
     if os.path.isfile(res_dir):
         try:
             prev_res = pd.read_csv(res_dir)
@@ -167,11 +175,12 @@ def save_results(res, args, res_name='results.csv', kwargs={}):
         except:
             print('Could not load old result.. overwriting')
 
-    # save_to_pickle(res, os.path.join(args.exp_dir, 'results.pkl'))
-    save_to_pickle(args, os.path.join(args.exp_dir, 'args.pkl'))
     res.to_csv(res_dir, index=False)
 
 
+# Save an object to a pickle file
+#   obj: The object to save
+#   file_path: where to save the object
 def save_to_pickle(obj, file_path):
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'wb') as handle:
@@ -179,6 +188,10 @@ def save_to_pickle(obj, file_path):
         handle.close()
 
 
+# Output a slice from a list by defining the slices' size and slice index
+#   lst: a list
+#   slice_size: the size of the slices
+#   slice_idx: the slice index
 def get_slice(lst, slice_size, slice_idx):
     start_id = slice_idx * slice_size
     end_id = start_id + slice_size
@@ -186,14 +199,15 @@ def get_slice(lst, slice_size, slice_idx):
     return lst[start_id:end_id]
 
 
+# Execute the main, setting some arguments hard-coded
 if __name__ == '__main__':
     channels = ['AGP', 'DNA', 'ER', 'Mito', 'RNA']
     split_loaders = None
 
-    if len(sys.argv)>1:
+    if len(sys.argv) > 1:
         inp = int(sys.argv[1])
     else:
-        inp=1
+        inp = 1
 
     exp_params = [
         # (['AGP'], ['Mito', 'RNA'], 16),
@@ -214,8 +228,6 @@ if __name__ == '__main__':
     DEBUG = False
 
     out_channels, in_channels, lsd = exp_params[inp]
-    # if exp_num != 11:
-    #     in_channels = ['GENERAL'] + in_channels
     args = parse_args(exp_num=exp_num, in_channels=in_channels, out_channels=out_channels)
 
     # exps = [(lr, batch_size)
@@ -328,14 +340,11 @@ if __name__ == '__main__':
         26578, 25416, 25492, 24654, 26680, 26577, 25590, 25909, 24591, 25741, 26247, 25885, 26772, 24635, 25408,
         26563]
 
-    plates4 = [25579,25580,25581,25583]
+    plates4 = [25579, 25580, 25581, 25583]
     # args.plates_split = [plates100, plates100.copy()]
     # args.plates_split = [all_plates, all_plates.copy()]
     args.plates_split = [plates4, plates4.copy()]
-    # args.plates_split = [
-    #     [p for p in plates if p != plates[plate_id]],
-    #     [plates[plate_id]]
-    # ]
+
     args.split_ratio = 0.8
 
     args.test_samples_per_plate = None
