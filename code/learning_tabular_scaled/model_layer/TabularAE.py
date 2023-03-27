@@ -8,9 +8,11 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch import nn
 
 
+# Holds the model architecture configuration
 class TabularAE(pl.LightningModule):
 
-    # fixed bug for pl loading model_checkpoint according to https://github.com/PyTorchLightning/pytorch-lightning/issues/2909
+    # fixed bug for pl loading model_checkpoint according to
+    # https://github.com/PyTorchLightning/pytorch-lightning/issues/2909
     def __init__(self, *args, **kwargs):
         super(TabularAE, self).__init__()
 
@@ -22,7 +24,8 @@ class TabularAE(pl.LightningModule):
         self.target_size = hparams.target_size
         self.latent_space_dim = hparams.latent_space_dim
         self.bilinear = True
-    
+
+        # Create the Encoder architecture according to the input and latent size
         print(f'Model size configurations:')
         print(f'\tInput size: {self.input_size}')
         enc_dims = [2 ** i for i in range(1, 16)
@@ -35,23 +38,7 @@ class TabularAE(pl.LightningModule):
         enc_layers = sum(enc_layers, [])
         self.encoder = nn.Sequential(*enc_layers)
 
-        # self.encoder = nn.Sequential(
-        #     nn.Linear(self.input_size, 512),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(512, 256),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(256, 128),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(128, 100),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(100, 50),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(50, 25),
-        #     nn.ReLU(inplace=True),
-        #     nn.Linear(25, 10)
-        #     # nn.ReLU(inplace=True)
-        # )
-
+        # Create the Decoder architecture according to the latent and target size
         dec_dims = [2 ** i for i in range(16, 1, -1)
                     if self.latent_space_dim <= 2 ** i <= self.target_size+1]
         print(f'\tDecode size: {dec_dims}')
@@ -63,16 +50,13 @@ class TabularAE(pl.LightningModule):
         self.decoder = nn.Sequential(*dec_layers)
         print(f'\tTarget size: {self.target_size}')
 
-        # self.decoder = nn.Sequential(
-        #     nn.Linear(10, self.target_size),
-        #     # nn.ReLU(inplace=True)
-        # )
-
+    # Set the forward process as chaining the encoder and the decoder
     def forward(self, x):
         z = self.encoder(x)
         y_hat = self.decoder(z)
         return y_hat
 
+    # Set the training step - define the loss as MSE
     def training_step(self, batch, batch_idx, dataloader_idx=None):
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
@@ -82,6 +66,7 @@ class TabularAE(pl.LightningModule):
         self.log('train_loss', loss.detach(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss, 'log': tensorboard_logs}
 
+    # Set the validation step - define the loss as MSE and logging the PCC (using unify_test_function)
     def validation_step(self, batch, batch_idx, dataloader_idx=None):
         _, loss, pcc = unify_test_function(self, batch)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -94,15 +79,21 @@ class TabularAE(pl.LightningModule):
         self.log('avg_val_loss', avg_loss.detach(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
 
+    # Configure the Adam optimizer
     def configure_optimizers(self):
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=1e-8)
 
+    # Configure the callbacks, early stopping and model checkpoint
     def configure_callbacks(self):
         early_stop = EarlyStopping(monitor="val_loss", mode="min", min_delta=0.002, patience=4, verbose=True)
         checkpoint = ModelCheckpoint(monitor="val_loss")
         return [early_stop, checkpoint]
 
 
+# Test a batch during testing or validating
+#   mse_reduction:
+#       - set to 'mean' if validating will output one number for the batch
+#       - set to 'none' if testing will output mse for each entry
 def unify_test_function(model, batch, mse_reduction='mean'):
     if len(batch) == 3:
         x, y, _ = batch
