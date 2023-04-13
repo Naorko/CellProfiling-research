@@ -6,12 +6,29 @@ import pandas as pd
 
 
 def sample_split_plate(plate, by_field, sample_n):
+    """
+    Sample sample_n values from plate by unique values of by_field
+    :param plate:
+    :param by_field:
+    :param sample_n:
+    :return: tuple (sampled values, other values)
+    """
     values = set(plate[by_field].unique().tolist())
     sample = set(random.sample(values, sample_n)) if sample_n < len(values) else values.copy()
     return sample, values - sample
 
 
 def create_tabular_metadata(plates_path, plates, label_field, train_labels, by_fld, sample_n):
+    """
+    Create metadata dataframe for tabulardata
+    :param plates_path: path to the plates' folder
+    :param plates: plates to create the metadata for
+    :param label_field:
+    :param train_labels: labels for train data
+    :param by_fld: field to sample by
+    :param sample_n: the amount to sample
+    :return: metadata pd.Dataframe
+    """
     mt_dict = {'Plate': [], label_field: [], 'Mode': [], by_fld: [], 'Count': []}
     for plate in plates:
         plate_path = os.path.join(plates_path, f'{plate}.csv')

@@ -21,19 +21,12 @@ Tensor = FloatTensor
 
 def load_data(args):
     """
-
-    :param args:
-        metadata_path: path to tabular metadata csv
-        plates_path: path to folder of plates' csvs
-        plates_split: dict containing:
-            train: plates numbers used for training
-            test: plates numbers used for test
-        split_ratio (float in [0,1]): train-val split param
-        target_channel (int): channel to predict
-
-    :return:
+    The main function to load all the dataset into dataloaders
+    :param args: Namespace object of the configurations
+    :return: list of dataloaders
     """
 
+    # Load metadata pd.Dataframe
     all_plates = args.plates_split[0]
     if args.metadata_path is None:
         mt_df = create_tabular_metadata(args.plates_path, all_plates, args.label_field, args.train_labels,
@@ -42,7 +35,7 @@ def load_data(args):
     else:
         mt_df = pd.read_csv(args.metadata_path, dtype={'Plate': int, 'Count': int})
 
-        #TODO - fix reproduce metadata table and remove following line
+        # TODO - fix reproduce metadata table and remove following line
         mt_df.loc[mt_df['Metadata_ASSAY_WELL_ROLE'].isna(), 'Metadata_ASSAY_WELL_ROLE'] = 'mock'
 
         mt_df[args.split_field] = mt_df[args.split_field].apply(eval)
@@ -53,20 +46,30 @@ def load_data(args):
             mt_df = pd.concat([mt_df, add_df], ignore_index=True)
             mt_df.to_csv(args.metadata_path, index=False)
 
+    # Split the plates into train\val\test partitions of indexes
     partitions = split_by_plates(mt_df, args)
 
+    # Transform the indexes to sub-dataframes of the metadata
     partitions = partitions_idx_to_dfs(mt_df, partitions)
 
+    # Create dataset object for each partition
     datasets = create_datasets(args.plates_split, partitions, args.plates_path,
                                args.input_fields, args.target_fields, args.index_fields,
                                args.device, args.norm_params_path)
     print_data_statistics(datasets)
+    # Create dataloader object for each dataset object
     data_loaders = create_data_loaders(datasets, partitions, args.batch_size, args.num_data_workers)
 
     return data_loaders
 
 
 def split_by_plates(df, args) -> dict:
+    """
+    Split the plates into train\val\test partitions of indexes
+    :param df: metadata pd.Dataframe
+    :param args: Namespace configurations object
+    :return: partitions including the line indexes of the original metadata dataframe
+    """
     train_plates, test_plates = args.plates_split
     # train_plates, val_plates = train_test_split(train_plates, train_size=args.split_ratio, shuffle=True)
     val_plates = train_plates.copy()
@@ -98,6 +101,12 @@ def split_by_plates(df, args) -> dict:
 
 
 def partitions_idx_to_dfs(mt_df, partitions):
+    """
+    Transform the indexes to sub-dataframes of the metadata
+    :param mt_df: the original metadata dataframe
+    :param partitions: the partitions including the line indexes
+    :return: partitions of sub-dataframes of the original metadata dataframe
+    """
     df_partitions = {
         'train': mt_df.iloc[partitions['train']].copy(),
         'val': mt_df.iloc[partitions['val']].copy(),
@@ -115,10 +124,21 @@ def partitions_idx_to_dfs(mt_df, partitions):
 
 
 def get_tensor(inp):
+    """
+    Tensor transformer
+    :param inp: input array
+    :return: Torch tensor
+    """
     return torch.from_numpy(inp)
 
 
-def get_normlizer(mean, std):
+def get_normalizer(mean, std):
+    """
+    Normalizer transformer
+    :param mean: The mean of the inputs
+    :param std: The standard deviation of the input
+    :return: The normalized input
+    """
     def normalizer(inp):
         return inp.sub_(mean).div_(std)
 
@@ -128,6 +148,18 @@ def get_normlizer(mean, std):
 def create_datasets(plates_split, partitions, data_dir,
                     input_fields, target_fields, index_fields,
                     device, norm_params_path):
+    """
+    Create dataset object for each partition
+    :param plates_split: tuple (train plates, test plates)
+    :param partitions: partitions of the metadata dataframe
+    :param data_dir: path to the plates' folder
+    :param input_fields: subset of the fields used for input
+    :param target_fields: subset of the fields used for output
+    :param index_fields: subset of the fields used for index
+    :param device: device to use (cpu/gpu)
+    :param norm_params_path: path to save/load the train statistics
+    :return: partitions of datasets
+    """
     train_plates, test_plates = plates_split
     mean, std = get_data_stats(partitions['train'], train_plates, data_dir, device,
                                input_fields, target_fields, norm_params_path, index_fields)
@@ -135,7 +167,7 @@ def create_datasets(plates_split, partitions, data_dir,
 
     tabular_transforms = transforms.Compose([
         get_tensor,
-        get_normlizer(mean, std)
+        get_normalizer(mean, std)
     ])
 
     datasets = {
@@ -164,6 +196,11 @@ def create_datasets(plates_split, partitions, data_dir,
 
 
 def print_data_statistics(datasets):
+    """
+    Print statistics over the datasets partitions
+    :param datasets:
+    :return: None
+    """
     print(f'train set contains {len(datasets["train"])} cells')
     print(f'val set contains {len(datasets["val"])} cells')
 
@@ -178,9 +215,20 @@ def print_data_statistics(datasets):
         print(f' test set of {key} contains {cnt} cells')
 
 
-def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, target_fields, norm_params_path,
-                   index_fields):
-    # TODO: Replace with actual numbers from more plates
+def get_data_stats(train_mt_df, train_plates, data_dir, device,
+                   input_fields, target_fields, norm_params_path, index_fields):
+    """
+
+    :param train_mt_df: train metadata dataframe
+    :param train_plates: list of plates for train
+    :param data_dir: path to the plates' folder
+    :param device: device to use (cpu/gpu)
+    :param input_fields: subset of the fields used for input
+    :param target_fields: subset of the fields used for output
+    :param norm_params_path: path to save/load the train statistics
+    :param index_fields: subset of the fields used for index
+    :return: mean and standard deviation of the train data
+    """
     if os.path.exists(norm_params_path):
         mean, std = joblib.load(norm_params_path)
     else:
@@ -193,6 +241,17 @@ def get_data_stats(train_mt_df, train_plates, data_dir, device, input_fields, ta
 
 
 def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target_fields, index_fields):
+    """
+    Calculate the mean and standard deviation of the train data
+    :param mt_df: metadata dataframe
+    :param data_dir: path to the plates' folder
+    :param num_batches: nuber of batches to calculate by
+    :param device: device to use (cpu/gpu)
+    :param input_fields: subset of the fields used for input
+    :param target_fields: subset of the fields used for output
+    :param index_fields: subset of the fields used for index
+    :return: mean and standard deviation of the train data
+    """
     train_data = TabularDataset(mt_df, root_dir=data_dir,
                                 input_fields=input_fields, target_fields=target_fields,
                                 for_data_statistics_calc=True, index_fields=index_fields)
@@ -225,6 +284,14 @@ def calc_mean_and_std(mt_df, data_dir, num_batches, device, input_fields, target
 
 
 def create_data_loaders(datasets, partitions, batch_size, num_workers=32) -> dict:
+    """
+    Create dataloader object for each dataset object
+    :param datasets: partitions of datasets objects
+    :param partitions: partitions of metadata dataframes
+    :param batch_size:
+    :param num_workers: number of workers for each dataloader
+    :return: partitions of dataloader
+    """
     data_loaders = {
         'train': DataLoader(datasets['train'], batch_size=batch_size,
                             shuffle=False, num_workers=num_workers),

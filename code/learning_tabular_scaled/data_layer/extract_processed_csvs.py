@@ -9,7 +9,7 @@ from tqdm import tqdm
 from code.learning_tabular_scaled.configuration.config import parse_args
 
 
-def main(metadata_df, root_dir, out_dir,normalize_by_plate=False):
+def main(metadata_df, root_dir, out_dir, normalize_by_plate=False):
     split_field = metadata_df.columns[3]
     metadata_df[split_field] = metadata_df[split_field].apply(eval)
 
@@ -19,7 +19,7 @@ def main(metadata_df, root_dir, out_dir,normalize_by_plate=False):
 
     # normalize to min max by
     if normalize_by_plate:
-        metadata_df_train = metadata_df.loc[metadata_df['Mode']=='train',:]
+        metadata_df_train = metadata_df.loc[metadata_df['Mode'] == 'train', :]
         for _, (p, lbl, mode, filter_set, c) in tqdm(metadata_df_train.iterrows()):
 
             out_path = os.path.join(out_dir, f'{p}_{lbl}_{mode}.csv')
@@ -31,8 +31,7 @@ def main(metadata_df, root_dir, out_dir,normalize_by_plate=False):
 
                 means[f'{p}'] = new_df.mean()
                 # maxs[f'{p}'] = new_df.max()
-                stds[f'{p}'] =  new_df.std()
-
+                stds[f'{p}'] = new_df.std()
 
     for _, (p, lbl, mode, filter_set, c) in tqdm(metadata_df.iterrows()):
 
@@ -50,7 +49,7 @@ def main(metadata_df, root_dir, out_dir,normalize_by_plate=False):
 
 
 if __name__ == '__main__':
-    i =int(sys.argv[1])
+    i = int(sys.argv[1])
     # inp = 1
 
     channels = ['AGP', 'DNA', 'ER', 'Mito', 'RNA']
@@ -71,7 +70,7 @@ if __name__ == '__main__':
     #     in_channels = ['GENERAL'] + in_channels
     args = parse_args(exp_num=exp_num, in_channels=in_channels, out_channels=out_channels)
 
-    normalize_by_plate=True
+    normalize_by_plate = True
     # i=0
     mt_pth = '/storage/users/g-and-n/plates/tabular_metadata.csv'
     r_dir = '/storage/users/g-and-n/plates/csvs/'
@@ -79,6 +78,6 @@ if __name__ == '__main__':
         o_dir = '/storage/users/g-and-n/plates/csvs_processed_normalized/'
     else:
         o_dir = '/storage/users/g-and-n/plates/csvs_processed/'
-    os.makedirs(o_dir,exist_ok=True)
+    os.makedirs(o_dir, exist_ok=True)
     metadata_df = pd.read_csv(mt_pth)
-    main(metadata_df.iloc[i*5:(i+1)*5], r_dir, o_dir,normalize_by_plate)
+    main(metadata_df.iloc[i * 5:(i + 1) * 5], r_dir, o_dir, normalize_by_plate)
