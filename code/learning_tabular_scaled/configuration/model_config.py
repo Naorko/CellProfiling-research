@@ -7,8 +7,10 @@ exp_values = default_exp
 input_size, target_size, lr, epochs, latent_space_dim = exp_values
 
 
-# Holds the model class and hyperparameters configurations
 class Model_Config(Enum):
+    """
+    Holds the model class and hyperparameters configurations
+    """
     TAE = ('autoencoder', TabularAE,
            {'input_size': input_size,
             'target_size': target_size,

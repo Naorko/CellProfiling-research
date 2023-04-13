@@ -19,15 +19,21 @@ import pytorch_lightning as pl
 import torch
 
 
-# The main function
-#   model: the neural network model configuration (from configuration.model_config)
-#   args: arguments configurations (from configuration.config)
-# Note: run defined by arg.mode:
-#   - train: will train a new model by the configurations
-#   - evaluate: will load and evaluate the model, saving the aggregated metrics per dataloader (MSE and PCC)
-#   - predict : will load (only if exist) a model and out the prediction error for every plate
-#               in dataloaders['test']
 def main(model, args, kwargs={}):
+    """
+    The main function
+  model:
+  args:
+Note: run defined by arg.mode:
+  - train: will train a new model by the configurations
+  - evaluate: will load and evaluate the model, saving the aggregated metrics per dataloader (MSE and PCC)
+  - predict : will load (only if exist) a model and out the prediction error for every plate
+              in dataloaders['test']
+    :param model: the neural network model configuration (from configuration.model_config)
+    :param args: Namespace object, arguments configurations (from configuration.config)
+    :param kwargs: additional arguments (for compatibility reasons)
+    :return: None
+    """
     print_exp_description(model, args, kwargs)
 
     logging.info('Preparing data...')
@@ -107,8 +113,14 @@ def main(model, args, kwargs={}):
         save_to_pickle(args, os.path.join(args.exp_dir, 'args.pkl'))
 
 
-# Print the experiment configurations
 def print_exp_description(Model, args, kwargs):
+    """
+    Print the experiment configurations
+    :param Model: model configurations
+    :param args: Namespace arguments object
+    :param kwargs: additional arguments (for compatibility reasons)
+    :return: None
+    """
     description = 'Training Model ' + Model.name + ' with target ' + '-'.join(args.target_channels)
     for arg in kwargs:
         description += ', ' + arg + ': ' + str(kwargs[arg])
@@ -127,11 +139,14 @@ def print_exp_description(Model, args, kwargs):
     print()
 
 
-# Create the prediction error output for every plate in test_dataloaders
-#   model: the trained neural network model to use
-#   test_dataloaders: dataloaders to predict
-#   exp_dir: the experiment directory, the output will be in a sub-folder named "results"
 def test_by_partition(model, test_dataloaders, exp_dir):
+    """
+    Create the prediction error output for every plate in test_dataloaders
+    :param model: the trained neural network model to use
+    :param test_dataloaders: dataloaders to predict
+    :param exp_dir: the experiment directory, the output will be in a sub-folder named "results"
+    :return: None
+    """
     result_path = os.path.join(exp_dir, 'results')
     os.makedirs(result_path, exist_ok=True)
 
@@ -149,10 +164,13 @@ def test_by_partition(model, test_dataloaders, exp_dir):
             del plate_results
 
 
-# Create the prediction error output for a single dataloader
-#   model: the trained neural network model to use
-#   data_loader: dataloader to predict
 def test(model, data_loader):
+    """
+    Create the prediction error output for a single dataloader
+    :param model: the trained neural network model to use
+    :param data_loader: dataloader to predict
+    :return: result pd.Dataframe
+    """
     pred, mse, pcc = zip(*[unify_test_function(model, batch, mse_reduction='none') for batch in data_loader])
     mses = [i.cpu().numpy() for i in mse]
     mses = np.concatenate(mses)
@@ -163,10 +181,14 @@ def test(model, data_loader):
     return results
 
 
-# Save results of evaluations, metrics per partition of the dataloader
-#   res: a dataframe contains the metrics data
-#   exp_dir: the experiment folder to use
 def save_results(res, exp_dir, res_name='results.csv'):
+    """
+    Save results of evaluations, metrics per partition of the dataloader
+    :param res: a dataframe contains the metrics data
+    :param exp_dir: the experiment folder to use
+    :param res_name: optional name of the csv file
+    :return: None
+    """
     res_dir = os.path.join(exp_dir, res_name)
     if os.path.isfile(res_dir):
         try:
@@ -178,21 +200,27 @@ def save_results(res, exp_dir, res_name='results.csv'):
     res.to_csv(res_dir, index=False)
 
 
-# Save an object to a pickle file
-#   obj: The object to save
-#   file_path: where to save the object
 def save_to_pickle(obj, file_path):
+    """
+    Save an object to a pickle file
+    :param obj: The object to save
+    :param file_path: where to save the object
+    :return: None
+    """
     os.makedirs(os.path.dirname(file_path), exist_ok=True)
     with open(file_path, 'wb') as handle:
         pickle.dump(obj, handle, protocol=pickle.HIGHEST_PROTOCOL)
         handle.close()
 
 
-# Output a slice from a list by defining the slices' size and slice index
-#   lst: a list
-#   slice_size: the size of the slices
-#   slice_idx: the slice index
 def get_slice(lst, slice_size, slice_idx):
+    """
+    Output a slice from a list by defining the slices' size and slice index
+    :param lst: a list
+    :param slice_size: the size of the slices
+    :param slice_idx: the slice index
+    :return: the slice
+    """
     start_id = slice_idx * slice_size
     end_id = start_id + slice_size
     end_id = len(lst) if len(lst) - end_id < slice_size - 1 else end_id

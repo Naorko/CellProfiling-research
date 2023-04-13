@@ -13,8 +13,16 @@ from pathlib import Path
 exp_number = None
 
 
-# Parse the inline arguments, see help for each parameter for details
 def parse_args(channel_idx=None, exp_num=None, in_channels=None, out_channels=None, cols_file=None):
+    """
+    Parse the inline arguments, see help for each parameter for details
+    :param channel_idx: index of the target channel (
+    :param exp_num: the experiment number used to name the folder
+    :param in_channels: input channels
+    :param out_channels: target channels
+    :param cols_file:
+    :return:
+    """
     global exp_number
     exp_number = exp_num
 

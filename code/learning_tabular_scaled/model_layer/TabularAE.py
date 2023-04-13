@@ -8,8 +8,10 @@ from pytorch_lightning.callbacks import ModelCheckpoint, EarlyStopping
 from torch import nn
 
 
-# Holds the model architecture configuration
 class TabularAE(pl.LightningModule):
+    """
+    Holds the model architecture configuration
+    """
 
     # fixed bug for pl loading model_checkpoint according to
     # https://github.com/PyTorchLightning/pytorch-lightning/issues/2909
@@ -50,14 +52,24 @@ class TabularAE(pl.LightningModule):
         self.decoder = nn.Sequential(*dec_layers)
         print(f'\tTarget size: {self.target_size}')
 
-    # Set the forward process as chaining the encoder and the decoder
     def forward(self, x):
+        """
+        Set the forward process as chaining the encoder and the decoder
+        :param x: input
+        :return: output after the forward process
+        """
         z = self.encoder(x)
         y_hat = self.decoder(z)
         return y_hat
 
-    # Set the training step - define the loss as MSE
     def training_step(self, batch, batch_idx, dataloader_idx=None):
+        """
+        Set the training step - define the loss as MSE
+        :param batch:
+        :param batch_idx:
+        :param dataloader_idx:
+        :return:
+        """
         x, y = batch
         x, y = x.to(self.device), y.to(self.device)
         y_hat = self.forward(x)
@@ -66,8 +78,14 @@ class TabularAE(pl.LightningModule):
         self.log('train_loss', loss.detach(), on_step=False, on_epoch=True, prog_bar=True, logger=True)
         return {'loss': loss, 'log': tensorboard_logs}
 
-    # Set the validation step - define the loss as MSE and logging the PCC (using unify_test_function)
     def validation_step(self, batch, batch_idx, dataloader_idx=None):
+        """
+        Set the validation step - define the loss as MSE and logging the PCC (using unify_test_function)
+        :param batch:
+        :param batch_idx:
+        :param dataloader_idx:
+        :return:
+        """
         _, loss, pcc = unify_test_function(self, batch)
         self.log('val_loss', loss, on_step=True, on_epoch=True, prog_bar=True, logger=True)
         self.log('val_pcc', pcc, on_step=True, on_epoch=True, prog_bar=True, logger=True)
@@ -79,22 +97,36 @@ class TabularAE(pl.LightningModule):
         self.log('avg_val_loss', avg_loss.detach(), on_step=True, on_epoch=True, prog_bar=True, logger=True)
         return {'avg_val_loss': avg_loss, 'log': tensorboard_logs}
 
-    # Configure the Adam optimizer
     def configure_optimizers(self):
+        """
+        Configure the Adam optimizer
+        :return: the optimizer object
+        """
         return torch.optim.Adam(self.parameters(), lr=self.hparams.lr, weight_decay=1e-8)
 
-    # Configure the callbacks, early stopping and model checkpoint
     def configure_callbacks(self):
+        """
+        Configure the callbacks, early stopping and model checkpoint
+        :return: callback objects list
+        """
         early_stop = EarlyStopping(monitor="val_loss", mode="min", min_delta=0.002, patience=4, verbose=True)
         checkpoint = ModelCheckpoint(monitor="val_loss")
         return [early_stop, checkpoint]
 
 
-# Test a batch during testing or validating
+#
 #   mse_reduction:
-#       - set to 'mean' if validating will output one number for the batch
-#       - set to 'none' if testing will output mse for each entry
+#
 def unify_test_function(model, batch, mse_reduction='mean'):
+    """
+    Test a batch during testing or validating
+    :param model:
+    :param batch:
+    :param mse_reduction:
+        - set to 'mean' if validating will output one number for the batch
+        - set to 'none' if testing will output mse for each entry
+    :return: tuple (prediction, mse, pcc)
+    """
     if len(batch) == 3:
         x, y, _ = batch
     else:
