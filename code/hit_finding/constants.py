@@ -1,4 +1,7 @@
 import os
+"""
+Some constants used by metrics.py, for compatibility reasons
+"""
 
 # Tabular
 model = 'DNN'
